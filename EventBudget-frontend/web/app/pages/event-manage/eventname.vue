@@ -6,6 +6,16 @@ definePageMeta({
   title: "Event Management",
 });
 
+const formatDate = (dateStr) => {
+  if (!dateStr) return "-";
+
+  const d = new Date(dateStr);
+  return d.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short", // short = Dec
+    year: "numeric",
+  });
+};
 
 // 🔗 URL API Laravel
 const API_URL = "http://127.0.0.1:8000/api/events";
@@ -188,7 +198,8 @@ const saveEvent = async () => {
 
           <div class="flex items-center gap-2 mt-3 text-[#4A5D7A] text-sm">
             <span class="w-2 h-2 rounded-full bg-[#F47A27] animate-pulse-soft"></span>
-            {{ getStartDate(event) }} → {{ getEndDate(event) }}
+            {{ formatDate(getStartDate(event)) }} → {{ formatDate(getEndDate(event)) }}
+
           </div>
         </div>
 
