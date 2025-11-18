@@ -6,6 +6,7 @@ definePageMeta({
   title: "Event Management",
 });
 
+
 const formatDate = (dateStr) => {
   if (!dateStr) return "-";
 
@@ -16,6 +17,51 @@ const formatDate = (dateStr) => {
     year: "numeric",
   });
 };
+
+// แปลงเงิน
+const formatMoney = (num) => {
+  if (!num) return "0";
+  return Number(num).toLocaleString("th-TH", {
+    style: "currency",
+    currency: "THB",
+    minimumFractionDigits: 0,
+  });
+};
+
+// ดึงชื่อสถานที่
+const getVenueName = (e) =>
+  e.venue_name || e.venue || e.location || e.country || "-";
+
+// นับจำนวนทีม
+const getTeamCount = (e) => {
+  if (Array.isArray(e.team)) return e.team.length;
+  if (typeof e.team_count === "number") return e.team_count;
+  return 0;
+};
+
+// สถานะอีเวนต์ จากวันที่วันนี้เทียบกับ start/end
+const getStatusInfo = (e) => {
+  const startRaw = getStartDate(e);
+  const endRaw = getEndDate(e);
+
+  if (!startRaw && !endRaw) {
+    return { label: "No date", bg: "bg-slate-100", text: "text-slate-500" };
+  }
+
+  const now = new Date();
+  const start = startRaw ? new Date(startRaw) : null;
+  const end = endRaw ? new Date(endRaw) : null;
+
+  if (start && end && now >= start && now <= end) {
+    return { label: "Ongoing", bg: "bg-blue-50", text: "text-blue-600" };
+  }
+  if (end && now > end) {
+    return { label: "Done", bg: "bg-slate-100", text: "text-slate-600" };
+  }
+  return { label: "Upcoming", bg: "bg-emerald-50", text: "text-emerald-600" };
+};
+
+
 
 // 🔗 URL API Laravel
 const API_URL = "http://127.0.0.1:8000/api/events";
@@ -199,45 +245,30 @@ const saveEvent = async () => {
           <div class="flex items-center gap-2 mt-3 text-[#4A5D7A] text-sm">
             <span class="w-2 h-2 rounded-full bg-[#F47A27] animate-pulse-soft"></span>
             {{ formatDate(getStartDate(event)) }} → {{ formatDate(getEndDate(event)) }}
+          </div>
 
+          <div class="mt-2 text-green-600 font-semibold text-sm flex items-center gap-1">
+            <span>💰</span>
+            {{ formatMoney(event.total || event.total_budget) }}
           </div>
         </div>
 
-        <div class="flex flex-col items-end gap-3">
-          <!-- CHECK BUTTON -->
-          <button
-            @click.stop
-            class="w-10 h-10 flex items-center justify-center rounded-full border-2 border-[#6558F5]
-                   text-[#6558F5] bg-[#E7E5FF]
-                   hover:bg-[#6558F5] hover:text-white hover:-translate-y-0.5 hover:scale-105
-                   transition-all duration-150 ease-out"
-          >
+        <!-- RIGHT: ปุ่มแบบแอพ -->
+        <div class="flex items-center gap-2 mt-4 sm:mt-0 self-start sm:self-end">
+          <!-- DONE / CHECK -->
+          <button @click.stop class="action-btn action-btn-done">
             ✓
           </button>
 
-          <div class="flex gap-3">
-            <!-- EDIT BUTTON -->
-            <button
-              @click.stop="editEvent(event)"
-              class="w-9 h-9 flex items-center justify-center rounded-full border border-[#3A5BA0]
-                     text-[#3A5BA0] bg-white
-                     hover:bg-[#3A5BA0] hover:text-white hover:-translate-y-0.5 hover:scale-105
-                     transition-all duration-150 ease-out"
-            >
-              ✎
-            </button>
+          <!-- EDIT -->
+          <button @click.stop="editEvent(event)" class="action-btn action-btn-edit">
+            ✎
+          </button>
 
-            <!-- DELETE BUTTON -->
-            <button
-              @click.stop="deleteEvent(event)"
-              class="w-9 h-9 flex items-center justify-center rounded-full border border-red-300
-                     text-red-500 bg-white
-                     hover:bg-red-50 hover:-translate-y-0.5 hover:scale-105
-                     transition-all duration-150 ease-out"
-            >
-              🗑
-            </button>
-          </div>
+          <!-- DELETE -->
+          <button @click.stop="deleteEvent(event)" class="action-btn action-btn-delete">
+            🗑
+          </button>
         </div>
       </div>
     </TransitionGroup>
@@ -280,7 +311,6 @@ const saveEvent = async () => {
 
           <!-- FORM -->
           <form @submit.prevent="saveEvent" class="px-6 py-5 overflow-y-auto space-y-5">
-
             <FormField label="Event Name">
               <input v-model="newEvent.name" class="form-input-light" placeholder="Enter event name" required />
             </FormField>
@@ -393,10 +423,11 @@ const saveEvent = async () => {
 
 
 
+
+
 <style>
 .form-input-light {
-  @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700
-  focus:border-orange-400 focus:ring-2 focus:ring-orange-200 outline-none transition;
+  @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-orange-400 focus:ring-2 focus:ring-orange-200 outline-none transition;
 }
 
 /* ✨ list card animation เวลาโหลด / เพิ่ม / ลบ */
@@ -433,10 +464,12 @@ const saveEvent = async () => {
     transform: scale(1);
     opacity: 0.9;
   }
+
   50% {
     transform: scale(1.25);
     opacity: 1;
   }
+
   100% {
     transform: scale(1);
     opacity: 0.9;
@@ -446,5 +479,28 @@ const saveEvent = async () => {
 .animate-pulse-soft {
   animation: pulse-soft 1.8s ease-in-out infinite;
 }
-</style>
+.action-btn {
+  @apply w-10 h-10 flex items-center justify-center rounded-full text-sm font-semibold
+  shadow-sm hover:shadow-md transition-all duration-150 ease-out
+  active:scale-95;
+}
 
+/* ปุ่มติ๊กถูก */
+.action-btn-done {
+  @apply bg-[#ECE8FF] text-[#6558F5] border border-[#C9BFFF]
+  hover:bg-[#6558F5] hover:text-white;
+}
+
+/* ปุ่มแก้ไข */
+.action-btn-edit {
+  @apply bg-[#E7F0FF] text-[#2357C6] border border-[#C4D9FF]
+  hover:bg-[#2357C6] hover:text-white;
+}
+
+/* ปุ่มลบ */
+.action-btn-delete {
+  @apply bg-[#FFE9E9] text-[#E04848] border border-[#FFC7C7]
+  hover:bg-[#E04848] hover:text-white;
+}
+
+</style>
