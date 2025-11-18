@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8" />
+    <title>EventBudget - ทดสอบ Currencies</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            max-width: 900px;
+            margin: 20px auto;
+        }
+        h1, h2 {
+            margin-bottom: 10px;
+        }
+        form {
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+        label {
+            display: block;
+            margin: 5px 0;
+        }
+        input {
+            width: 100%;
+            padding: 5px;
+            box-sizing: border-box;
+        }
+        button {
+            margin-top: 10px;
+            padding: 6px 12px;
+            cursor: pointer;
+        }
+        .cur-card {
+            border: 1px solid #ccc;
+            padding: 8px;
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .cur-left {
+            display: flex;
+            flex-direction: column;
+        }
+        .cur-code {
+            font-weight: bold;
+        }
+        .base-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid #0a0;
+            font-size: 12px;
+            margin-left: 6px;
+        }
+    </style>
+</head>
+<body>
+    <h1>EventBudget - ทดสอบ Currencies API</h1>
+
+    <section>
+        <h2>เพิ่ม/แก้ไขสกุลเงิน</h2>
+        <form id="cur-form">
+            <label>
+                รหัสสกุลเงิน (code) เช่น THB, USD *
+                <input type="text" name="code" required />
+            </label>
+            <label>
+                ชื่อเต็ม (name) *
+                <input type="text" name="name" required />
+            </label>
+            <label>
+                อัตราเทียบสกุลหลัก (rate_to_base) *
+                <input type="number" name="rate_to_base" step="0.0001" required />
+            </label>
+            <label>
+                เป็นสกุลหลักของระบบ? (base currency)
+                <input type="checkbox" name="is_base_currency" />
+            </label>
+
+            <button type="submit">บันทึกสกุลเงินใหม่</button>
+        </form>
+    </section>
+
+    <section>
+        <h2>รายการสกุลเงิน</h2>
+        <div id="cur-list">กำลังโหลด...</div>
+    </section>
+
+    <script>
+        const API_BASE = 'http://127.0.0.1:8000/api';
+
+        async function loadCurrencies() {
+            const listEl = document.getElementById('cur-list');
+            listEl.textContent = 'กำลังโหลด...';
+
+            try {
+                const res = await fetch(`${API_BASE}/currencies`);
+                const data = await res.json();
+
+                if (!Array.isArray(data) || data.length === 0) {
+                    listEl.textContent = 'ยังไม่มีสกุลเงิน';
+                    return;
+                }
+
+                listEl.innerHTML = '';
+                data.forEach(cur => {
+                    const div = document.createElement('div');
+                    div.className = 'cur-card';
+
+                    div.innerHTML = `
+                        <div class="cur-left">
+                            <div>
+                                <span class="cur-code">${cur.code}</span>
+                                ${cur.is_base_currency ? '<span class="base-badge">BASE</span>' : ''}
+                            </div>
+                            <span>${cur.name}</span>
+                            <span>rate_to_base: ${cur.rate_to_base}</span>
+                        </div>
+                        <button data-id="${cur.id}" class="delete-btn">ลบ</button>
+                    `;
+
+                    listEl.appendChild(div);
+                });
+
+                document.querySelectorAll('.delete-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const id = btn.getAttribute('data-id');
+                        deleteCurrency(id);
+                    });
+                });
+
+            } catch (err) {
+                console.error(err);
+                listEl.textContent = 'โหลดไม่สำเร็จ ดู console';
+            }
+        }
+
+        document.getElementById('cur-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const form = e.target;
+            const formData = new FormData(form);
+            const payload = {};
+
+            formData.forEach((value, key) => {
+                if (key === 'is_base_currency') {
+                    payload[key] = true;
+                } else {
+                    payload[key] = value;
+                }
+            });
+
+            if (!formData.has('is_base_currency')) {
+                payload['is_base_currency'] = false;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/currencies`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    alert('บันทึกไม่สำเร็จ\n' + JSON.stringify(errData));
+                    return;
+                }
+
+                form.reset();
+                await loadCurrencies();
+            } catch (err) {
+                console.error(err);
+                alert('เกิดข้อผิดพลาดในการบันทึก');
+            }
+        });
+
+        async function deleteCurrency(id) {
+            if (!confirm('ต้องการลบสกุลเงินนี้จริงหรือไม่?')) return;
+
+            try {
+                const res = await fetch(`${API_BASE}/currencies/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json',
+                    },
+                });
+
+                if (!res.ok && res.status !== 204) {
+                    alert('ลบไม่สำเร็จ');
+                    return;
+                }
+
+                await loadCurrencies();
+            } catch (err) {
+                console.error(err);
+                alert('เกิดข้อผิดพลาดในการลบ');
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', loadCurrencies);
+    </script>
+</body>
+</html>

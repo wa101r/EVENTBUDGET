@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8" />
+    <title>EventBudget - ทดสอบ Events</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            max-width: 900px;
+            margin: 20px auto;
+        }
+        h1, h2 {
+            margin-bottom: 10px;
+        }
+        form {
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+        label {
+            display: block;
+            margin: 5px 0;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 5px;
+            box-sizing: border-box;
+        }
+        button {
+            margin-top: 10px;
+            padding: 6px 12px;
+            cursor: pointer;
+        }
+        .event-card {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 8px;
+        }
+        .event-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .event-name {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>EventBudget - ทดสอบ Events API</h1>
+
+    <!-- ฟอร์มเพิ่มอีเวนต์ใหม่ -->
+    <section>
+        <h2>เพิ่มอีเวนต์ใหม่</h2>
+        <form id="event-form">
+            <label>
+                ชื่ออีเวนต์ *
+                <input type="text" name="name" required />
+            </label>
+
+            <label>
+                วันที่เริ่ม *
+                <input type="date" name="start_date" required />
+            </label>
+
+            <label>
+                วันที่สิ้นสุด *
+                <input type="date" name="end_date" required />
+            </label>
+
+            <label>
+                ลูกค้า
+                <input type="text" name="client_name" />
+            </label>
+
+            <label>
+                ประเทศ
+                <input type="text" name="country" />
+            </label>
+
+            <label>
+                สถานที่จัดงาน (Venue)
+                <input type="text" name="venue" />
+            </label>
+
+            <label>
+                ที่พัก (Accommodation)
+                <input type="text" name="accommodation" />
+            </label>
+
+            <label>
+                ลิงก์ไฟล์ออนไลน์ (Drive / Docs)
+                <input type="text" name="drive_link" />
+            </label>
+
+            <label>
+                รายละเอียดอีเวนต์
+                <textarea name="description" rows="3"></textarea>
+            </label>
+
+            <button type="submit">บันทึกอีเวนต์</button>
+        </form>
+    </section>
+
+    <!-- รายการอีเวนต์ -->
+    <section>
+        <h2>รายการอีเวนต์</h2>
+        <div id="events-list">
+            กำลังโหลด...
+        </div>
+    </section>
+
+    <script>
+        const API_BASE = 'http://127.0.0.1:8000/api';
+
+        // โหลดรายการอีเวนต์ทั้งหมด
+        async function loadEvents() {
+            const listEl = document.getElementById('events-list');
+            listEl.textContent = 'กำลังโหลด...';
+
+            try {
+                const res = await fetch(`${API_BASE}/events`);
+                const data = await res.json();
+
+                if (!Array.isArray(data) || data.length === 0) {
+                    listEl.textContent = 'ยังไม่มีอีเวนต์';
+                    return;
+                }
+
+                listEl.innerHTML = '';
+                data.forEach(ev => {
+                    const div = document.createElement('div');
+                    div.className = 'event-card';
+                    div.innerHTML = `
+                        <div class="event-header">
+                            <span class="event-name">${ev.name}</span>
+                            <button data-id="${ev.id}" class="delete-btn">ลบ</button>
+                        </div>
+                        <div>
+                            วันที่: ${ev.start_date} ถึง ${ev.end_date}
+                        </div>
+                        <div>ลูกค้า: ${ev.client_name || '-'}</div>
+                        <div>ประเทศ: ${ev.country || '-'}</div>
+                        <div>สถานที่: ${ev.venue || '-'}</div>
+                        <div>ที่พัก: ${ev.accommodation || '-'}</div>
+                        <div>ลิงก์: ${ev.drive_link || '-'}</div>
+                        <div>รายละเอียด: ${ev.description || '-'}</div>
+                    `;
+                    listEl.appendChild(div);
+                });
+
+                // ผูก event ลบ
+                document.querySelectorAll('.delete-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const id = btn.getAttribute('data-id');
+                        deleteEvent(id);
+                    });
+                });
+
+            } catch (err) {
+                console.error(err);
+                listEl.textContent = 'โหลดข้อมูลผิดพลาด ดู console';
+            }
+        }
+
+        // ส่งฟอร์มเพิ่มอีเวนต์ใหม่
+        document.getElementById('event-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const form = e.target;
+            const formData = new FormData(form);
+
+            const payload = {};
+            formData.forEach((value, key) => {
+                payload[key] = value;
+            });
+
+            try {
+                const res = await fetch(`${API_BASE}/events`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                if (!res.ok) {
+                    const errorData = await res.json().catch(() => ({}));
+                    alert('บันทึกไม่สำเร็จ\n' + JSON.stringify(errorData));
+                    return;
+                }
+
+                form.reset();
+                await loadEvents();
+            } catch (err) {
+                console.error(err);
+                alert('เกิดข้อผิดพลาดในการบันทึก');
+            }
+        });
+
+        // ฟังก์ชันลบอีเวนต์
+        async function deleteEvent(id) {
+            if (!confirm('ต้องการลบอีเวนต์นี้จริงหรือไม่?')) return;
+
+            try {
+                const res = await fetch(`${API_BASE}/events/${id}`, {
+                    method: 'DELETE',
+                    headers: { 'Accept': 'application/json' }
+                });
+
+                if (!res.ok && res.status !== 204) {
+                    alert('ลบไม่สำเร็จ');
+                    return;
+                }
+
+                await loadEvents();
+            } catch (err) {
+                console.error(err);
+                alert('เกิดข้อผิดพลาดในการลบ');
+            }
+        }
+
+        // โหลดข้อมูลเมื่อเปิดหน้า
+        window.addEventListener('DOMContentLoaded', loadEvents);
+    </script>
+</body>
+</html>

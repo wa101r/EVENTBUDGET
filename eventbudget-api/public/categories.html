@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8" />
+    <title>EventBudget - ทดสอบ Categories</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+        }
+        h1, h2 {
+            margin-bottom: 10px;
+        }
+        form {
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+        label {
+            display: block;
+            margin: 5px 0;
+        }
+        input {
+            width: 100%;
+            padding: 5px;
+            box-sizing: border-box;
+        }
+        button {
+            margin-top: 10px;
+            padding: 6px 12px;
+            cursor: pointer;
+        }
+        .cat-card {
+            border: 1px solid #ccc;
+            padding: 8px;
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .cat-left {
+            display: flex;
+            flex-direction: column;
+        }
+        .cat-name {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>EventBudget - ทดสอบ Categories API</h1>
+
+    <section>
+        <h2>เพิ่มหมวดหมู่ใหม่</h2>
+        <form id="cat-form">
+            <label>
+                ชื่อหมวดหมู่ *
+                <input type="text" name="name" required />
+            </label>
+            <label>
+                ไอคอน (เช่น burger, guitar, car)
+                <input type="text" name="icon" />
+            </label>
+            <button type="submit">บันทึกหมวดหมู่</button>
+        </form>
+    </section>
+
+    <section>
+        <h2>รายการหมวดหมู่</h2>
+        <div id="cat-list">
+            กำลังโหลด...
+        </div>
+    </section>
+
+    <script>
+        const API_BASE = 'http://127.0.0.1:8000/api';
+
+        async function loadCategories() {
+            const listEl = document.getElementById('cat-list');
+            listEl.textContent = 'กำลังโหลด...';
+
+            try {
+                const res = await fetch(`${API_BASE}/categories`);
+                const data = await res.json();
+
+                if (!Array.isArray(data) || data.length === 0) {
+                    listEl.textContent = 'ยังไม่มีหมวดหมู่';
+                    return;
+                }
+
+                listEl.innerHTML = '';
+                data.forEach(cat => {
+                    const div = document.createElement('div');
+                    div.className = 'cat-card';
+                    div.innerHTML = `
+                        <div class="cat-left">
+                            <span class="cat-name">${cat.name}</span>
+                            <span>icon: ${cat.icon || '-'}</span>
+                        </div>
+                        <button data-id="${cat.id}" class="delete-btn">ลบ</button>
+                    `;
+                    listEl.appendChild(div);
+                });
+
+                document.querySelectorAll('.delete-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const id = btn.getAttribute('data-id');
+                        deleteCategory(id);
+                    });
+                });
+            } catch (err) {
+                console.error(err);
+                listEl.textContent = 'โหลดไม่สำเร็จ ดู console';
+            }
+        }
+
+        document.getElementById('cat-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const form = e.target;
+            const formData = new FormData(form);
+            const payload = {};
+            formData.forEach((value, key) => {
+                payload[key] = value;
+            });
+
+            try {
+                const res = await fetch(`${API_BASE}/categories`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    alert('บันทึกไม่สำเร็จ\n' + JSON.stringify(errData));
+                    return;
+                }
+
+                form.reset();
+                await loadCategories();
+            } catch (err) {
+                console.error(err);
+                alert('เกิดข้อผิดพลาดในการบันทึก');
+            }
+        });
+
+        async function deleteCategory(id) {
+            if (!confirm('ต้องการลบหมวดหมู่นี้จริงหรือไม่?')) return;
+
+            try {
+                const res = await fetch(`${API_BASE}/categories/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json',
+                    },
+                });
+
+                if (!res.ok && res.status !== 204) {
+                    alert('ลบไม่สำเร็จ');
+                    return;
+                }
+
+                await loadCategories();
+            } catch (err) {
+                console.error(err);
+                alert('เกิดข้อผิดพลาดในการลบ');
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', loadCategories);
+    </script>
+</body>
+</html>
