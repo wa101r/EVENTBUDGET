@@ -1,57 +1,51 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Api;
 
-use App\Models\Category;
+use App\Http\Controllers\Controller;
+use App\Models\Category;   // 👈 สำคัญ ต้องมี use ตัวนี้
 use Illuminate\Http\Request;
 
 class CategoryController extends Controller
 {
-    // GET /api/categories
     public function index()
     {
-        return Category::orderBy('name', 'asc')->get();
+        return Category::orderBy('name')->get();
     }
 
-    // POST /api/categories
     public function store(Request $request)
     {
+        // validate ง่าย ๆ
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'icon' => 'nullable|string|max:255',
         ]);
 
-        $category = Category::create($data);
+        // ใช้ mass assign ได้เพราะเราเซ็ต $fillable แล้ว
+        $cat = Category::create($data);
 
-        return response()->json($category, 201);
+        return response()->json($cat, 201);
     }
 
-    // GET /api/categories/{id}
-    public function show($id)
-    {
-        return Category::findOrFail($id);
-    }
-
-    // PUT /api/categories/{id}
     public function update(Request $request, $id)
     {
-        $category = Category::findOrFail($id);
+        $cat = Category::findOrFail($id);
 
         $data = $request->validate([
             'name' => 'sometimes|required|string|max:255',
             'icon' => 'nullable|string|max:255',
         ]);
 
-        $category->update($data);
+        $cat->fill($data);
+        $cat->save();
 
-        return response()->json($category);
+        return response()->json($cat);
     }
 
-    // DELETE /api/categories/{id}
     public function destroy($id)
     {
-        $category = Category::findOrFail($id);
-        $category->delete();
+        $cat = Category::findOrFail($id);
+        $cat->delete();
 
         return response()->json(null, 204);
     }

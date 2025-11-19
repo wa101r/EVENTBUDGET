@@ -227,22 +227,18 @@ const saveEvent = async () => {
   <div class="p-4 min-h-screen bg-[#F2F6FA] text-[#2B3856]">
     <!-- EVENT LIST + ANIMATION -->
     <TransitionGroup name="list-fade" tag="div">
-      <div
-        v-for="event in events"
-        :key="event.id"
-        @click="editEvent(event)"
-        class="cursor-pointer bg-white border border-[#E3EAF3] p-6 rounded-xl shadow-sm mt-4 flex justify-between
-               hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 ease-out"
-      >
-        <div>
-          <h2 class="text-xl font-semibold text-[#2B3856]">
+      <div v-for="event in events" :key="event.id" @click="editEvent(event)" class="cursor-pointer bg-white border border-[#E3EAF3] p-5 sm:p-6 rounded-2xl shadow-sm mt-4
+           flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <!-- LEFT: ข้อมูลอีเวนต์ -->
+        <div class="flex-1">
+          <h2 class="text-lg sm:text-xl font-semibold text-[#2B3856]">
             {{ getEventName(event) }}
           </h2>
-          <p class="text-[#3A5BA0] font-medium uppercase text-sm mt-1 tracking-wide">
+          <p class="text-[#3A5BA0] font-medium uppercase text-xs sm:text-sm mt-1 tracking-wide">
             {{ getClientName(event) }}
           </p>
 
-          <div class="flex items-center gap-2 mt-3 text-[#4A5D7A] text-sm">
+          <div class="flex items-center gap-2 mt-3 text-[#4A5D7A] text-xs sm:text-sm">
             <span class="w-2 h-2 rounded-full bg-[#F47A27] animate-pulse-soft"></span>
             {{ formatDate(getStartDate(event)) }} → {{ formatDate(getEndDate(event)) }}
           </div>
@@ -253,58 +249,59 @@ const saveEvent = async () => {
           </div>
         </div>
 
-        <!-- RIGHT: ปุ่มแบบแอพ -->
-        <div class="flex items-center gap-2 mt-4 sm:mt-0 self-start sm:self-end">
-          <!-- DONE / CHECK -->
-          <button @click.stop class="action-btn action-btn-done">
-            ✓
-          </button>
+        <!-- RIGHT: ปุ่ม (render เฉพาะฝั่ง client) -->
+        <ClientOnly>
+          <div class="flex w-full sm:w-auto flex-col sm:flex-row gap-2 sm:items-center sm:justify-end" @click.stop>
+            <!-- DONE -->
+            <button class="btn-app w-full sm:w-auto bg-[#ECE8FF] text-[#6558F5] hover:bg-[#6558F5] hover:text-white">
+              <Icon name="ph:check-bold" size="18" />
+              <span>Done</span>
+            </button>
 
-          <!-- EDIT -->
-          <button @click.stop="editEvent(event)" class="action-btn action-btn-edit">
-            ✎
-          </button>
+            <!-- EDIT -->
+            <button class="btn-app w-full sm:w-auto bg-[#E7F0FF] text-[#2357C6] hover:bg-[#2357C6] hover:text-white"
+              @click="editEvent(event)">
+              <Icon name="ph:pencil-simple-bold" size="18" />
+              <span>Edit</span>
+            </button>
 
-          <!-- DELETE -->
-          <button @click.stop="deleteEvent(event)" class="action-btn action-btn-delete">
-            🗑
-          </button>
-        </div>
+            <!-- DELETE -->
+            <button class="btn-app w-full sm:w-auto bg-[#FFE9E9] text-[#E04848] hover:bg-[#E04848] hover:text-white"
+              @click="deleteEvent(event)">
+              <Icon name="ph:trash-bold" size="18" />
+              <span>Delete</span>
+            </button>
+          </div>
+        </ClientOnly>
+
+
+
       </div>
     </TransitionGroup>
 
+
     <!-- ADD BUTTON -->
-    <button
-      @click="openCreate"
-      class="fixed bottom-6 right-6 bg-[#F47A27] text-white rounded-full px-6 py-3 text-lg shadow-lg
+    <button @click="openCreate" class="fixed bottom-6 right-6 bg-[#F47A27] text-white rounded-full px-6 py-3 text-lg shadow-lg
              flex items-center gap-2 hover:bg-[#d96b22]
              hover:-translate-y-1 hover:shadow-2xl active:scale-95
-             transition-all duration-200 ease-out"
-    >
+             transition-all duration-200 ease-out">
       <span class="text-2xl leading-none">+</span>
       <span>Add Event</span>
     </button>
 
     <!-- POPUP OVERLAY + ANIMATION -->
-    <div
-      v-if="isOpen"
-      class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4"
-    >
+    <div v-if="isOpen" class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4">
       <Transition name="fade-scale">
-        <div
-          v-show="isOpen"
-          class="bg-white w-full max-w-2xl max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-        >
+        <div v-show="isOpen"
+          class="bg-white w-full max-w-2xl max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
           <!-- HEADER -->
           <div class="flex justify-between items-center px-6 py-4 border-b border-slate-200">
             <h2 class="text-xl font-semibold text-slate-900">
               {{ isEditing ? "Edit Event" : "Add New Event" }}
             </h2>
 
-            <button
-              @click="closePopup"
-              class="text-slate-400 hover:text-slate-600 text-2xl leading-none transition-transform hover:rotate-90"
-            >
+            <button @click="closePopup"
+              class="text-slate-400 hover:text-slate-600 text-2xl leading-none transition-transform hover:rotate-90">
               ✕
             </button>
           </div>
@@ -368,49 +365,31 @@ const saveEvent = async () => {
 
             <h3 class="text-lg font-semibold text-slate-900">Team Management</h3>
 
-            <div
-              v-for="(member, index) in newEvent.team"
-              :key="index"
-              class="flex items-center gap-3 mt-3"
-            >
+            <div v-for="(member, index) in newEvent.team" :key="index" class="flex items-center gap-3 mt-3">
               <input v-model="member.name" class="form-input-light" placeholder="Team Member" required />
-              <button
-                type="button"
-                @click="removeTeamMember(index)"
-                class="text-slate-400 hover:text-red-500 text-xl transition-transform hover:scale-110"
-              >
+              <button type="button" @click="removeTeamMember(index)"
+                class="text-slate-400 hover:text-red-500 text-xl transition-transform hover:scale-110">
                 🗑
               </button>
             </div>
 
-            <button
-              type="button"
-              @click="addTeamMember"
-              class="mt-3 flex items-center gap-2 border border-orange-300 text-orange-500 px-4 py-2 rounded-lg
+            <button type="button" @click="addTeamMember" class="mt-3 flex items-center gap-2 border border-orange-300 text-orange-500 px-4 py-2 rounded-lg
                      hover:bg-orange-50 hover:-translate-y-0.5 hover:shadow-sm
-                     transition-all duration-150 ease-out"
-            >
+                     transition-all duration-150 ease-out">
               <span class="text-xl leading-none">+</span> Add Team Member
             </button>
 
             <!-- FOOTER -->
             <div class="flex justify-end gap-2 pt-6 border-t border-slate-200">
-              <button
-                type="button"
-                @click="closePopup"
-                class="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg
+              <button type="button" @click="closePopup" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-lg
                        hover:bg-slate-300 hover:-translate-y-0.5
-                       transition-all duration-150 ease-out"
-              >
+                       transition-all duration-150 ease-out">
                 Cancel
               </button>
 
-              <button
-                type="submit"
-                class="px-5 py-2 bg-[#F47A27] text-white rounded-lg shadow-sm
+              <button type="submit" class="px-5 py-2 bg-[#F47A27] text-white rounded-lg shadow-sm
                        hover:bg-[#d96b22] hover:-translate-y-0.5 hover:shadow-md active:scale-95
-                       transition-all duration-150 ease-out"
-              >
+                       transition-all duration-150 ease-out">
                 {{ isEditing ? "Update" : "Save" }}
               </button>
             </div>
@@ -426,6 +405,12 @@ const saveEvent = async () => {
 
 
 <style>
+.btn-app {
+  @apply flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium text-sm shadow-sm hover:shadow-md transition-all duration-150 ease-out active:scale-95;
+}
+
+
+
 .form-input-light {
   @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-orange-400 focus:ring-2 focus:ring-orange-200 outline-none transition;
 }
@@ -479,28 +464,23 @@ const saveEvent = async () => {
 .animate-pulse-soft {
   animation: pulse-soft 1.8s ease-in-out infinite;
 }
+
 .action-btn {
-  @apply w-10 h-10 flex items-center justify-center rounded-full text-sm font-semibold
-  shadow-sm hover:shadow-md transition-all duration-150 ease-out
-  active:scale-95;
+  @apply w-10 h-10 flex items-center justify-center rounded-full text-sm font-semibold shadow-sm hover:shadow-md transition-all duration-150 ease-out active:scale-95;
 }
 
 /* ปุ่มติ๊กถูก */
 .action-btn-done {
-  @apply bg-[#ECE8FF] text-[#6558F5] border border-[#C9BFFF]
-  hover:bg-[#6558F5] hover:text-white;
+  @apply bg-[#ECE8FF] text-[#6558F5] border border-[#C9BFFF] hover:bg-[#6558F5] hover:text-white;
 }
 
 /* ปุ่มแก้ไข */
 .action-btn-edit {
-  @apply bg-[#E7F0FF] text-[#2357C6] border border-[#C4D9FF]
-  hover:bg-[#2357C6] hover:text-white;
+  @apply bg-[#E7F0FF] text-[#2357C6] border border-[#C4D9FF] hover:bg-[#2357C6] hover:text-white;
 }
 
 /* ปุ่มลบ */
 .action-btn-delete {
-  @apply bg-[#FFE9E9] text-[#E04848] border border-[#FFC7C7]
-  hover:bg-[#E04848] hover:text-white;
+  @apply bg-[#FFE9E9] text-[#E04848] border border-[#FFC7C7] hover:bg-[#E04848] hover:text-white;
 }
-
 </style>

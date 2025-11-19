@@ -9,10 +9,13 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
 
-  // ใช้โมดูล tailwind ของ Nuxt
-  modules: ['@nuxtjs/tailwindcss'],
+  modules: [
+    '@nuxtjs/tailwindcss', // มีอยู่แล้ว
+    '@pinia/nuxt',         // state management
+    '@vueuse/nuxt',        // composables เสริม
+    '@nuxt/icon',           // ใช้ไอคอนง่าย ๆ
+  ],
 
-  // ตรงนี้ไม่ต้องใส่ postcss แล้ว ให้โมดูลจัดการเอง
   css: ['~/assets/css/tailwind.css'],
 
   srcDir: 'app/',
