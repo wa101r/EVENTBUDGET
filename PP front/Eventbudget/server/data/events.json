@@ -1,0 +1,32 @@
+[
+  {
+    "id": 1,
+    "name": "Tech Conference 2024",
+    "description": "The premier annual conference for technology enthusiasts.",
+    "start_date": "2024-10-26",
+    "end_date": "2024-10-28",
+    "client_name": "Innovate Corp.",
+    "location": "Bangkok, Thailand",
+    "total_budget": 500000,
+    "venue_name": "BITEC",
+    "venue_url": "https://bitec.co.th",
+    "accommodation_name": "Avani Sukhumvit",
+    "accommodation_url": "https://avanihotels.com",
+    "drive_link": "https://drive.google.com/drive/folders/..."
+  },
+  {
+    "id": 2,
+    "name": "AI Expo Bangkok 2025",
+    "description": "Showcasing the latest AI technologies.",
+    "start_date": "2025-02-10",
+    "end_date": "2025-02-12",
+    "client_name": "SmartData Thailand",
+    "location": "Bangkok",
+    "total_budget": 120000,
+    "venue_name": "Impact Arena",
+    "venue_url": "",
+    "accommodation_name": "Novotel Impact",
+    "accommodation_url": "",
+    "drive_link": ""
+  }
+]
