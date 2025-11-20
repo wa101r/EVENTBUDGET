@@ -6,12 +6,16 @@ definePageMeta({
   title: 'Currency Management'
 })
 
-// -------------------- CONFIG --------------------
-const BACKEND_API = 'http://127.0.0.1:8000/api/currencies'
+// -------------------- CONFIG จาก runtimeConfig --------------------
+const config = useRuntimeConfig()
 
-// 👉 ใส่ API KEY ของ ExchangeRate-API ตรงนี้
-const EXCHANGE_API_KEY = '02870fb2d04e8c1f3ff3690e'
-const EXCHANGE_URL = `https://v6.exchangerate-api.com/v6/${EXCHANGE_API_KEY}/latest/USD`
+// Laravel backend
+const BACKEND_API = `${config.public.apiBase}/currencies`
+
+// ExchangeRate-API (ใช้ key + base จาก .env)
+const EXCHANGE_API_KEY = config.public.exchangeApiKey as string
+const EXCHANGE_BASE = (config.public.exchangeBase || 'USD') as string
+const EXCHANGE_URL = `https://v6.exchangerate-api.com/v6/${EXCHANGE_API_KEY}/latest/${EXCHANGE_BASE}`
 
 // -------------------- STATE หลัก --------------------
 const currenciesRaw = ref<any[]>([])
@@ -279,6 +283,7 @@ const swapFx = () => {
   fxTo.value = from
 }
 </script>
+
 
 <template>
   <div class="min-h-[calc(100vh-72px)] bg-slate-50 px-4 py-4 md:px-6 md:py-6">
