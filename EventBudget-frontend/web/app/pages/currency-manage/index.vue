@@ -1,28 +1,30 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { currencyMeta, getCurrencyLabel } from '~/shared/currencyMeta'
 
+// ================== PAGE META ==================
 definePageMeta({
   layout: 'header',
   title: 'Currency Management'
 })
 
-// -------------------- CONFIG จาก runtimeConfig --------------------
+// ================== CONFIG จาก .env ==================
 const config = useRuntimeConfig()
 
-// Laravel backend
+// เช่น NUXT_PUBLIC_API_BASE = http://127.0.0.1:8000/api
+//     NUXT_PUBLIC_EXCHANGE_KEY = xxxxxx
 const BACKEND_API = `${config.public.apiBase}/currencies`
-
-// ExchangeRate-API (ใช้ key + base จาก .env)
 const EXCHANGE_API_KEY = config.public.exchangeApiKey as string
-const EXCHANGE_BASE = (config.public.exchangeBase || 'USD') as string
-const EXCHANGE_URL = `https://v6.exchangerate-api.com/v6/${EXCHANGE_API_KEY}/latest/${EXCHANGE_BASE}`
 
-// -------------------- STATE หลัก --------------------
+// เราเรียกจาก USD แล้วแปลงเป็น THB base เอง
+const EXCHANGE_URL = `https://v6.exchangerate-api.com/v6/${EXCHANGE_API_KEY}/latest/USD`
+
+// ================== STATE หลัก ==================
 const currenciesRaw = ref<any[]>([])
 const isLoading = ref(true)
 const isError = ref(false)
 
-// live rate: 1 THB = x CODE  (เช่น { USD: 0.0308, JPY: 4.8, ... })
+// live rate: 1 THB = x CODE   เช่น { USD: 0.0308, JPY: 4.8, ... }
 const thbRates = ref<Record<string, number>>({})
 const isLiveLoading = ref(false)
 const liveError = ref<string | null>(null)
@@ -32,7 +34,13 @@ const fxAmount = ref(1000)
 const fxFrom = ref('THB')
 const fxTo = ref('USD')
 
-// modal CRUD
+// ====== state ของ searchable dropdown ======
+const fromSearch = ref('')
+const toSearch = ref('')
+const isFromOpen = ref(false)
+const isToOpen = ref(false)
+
+// ------- MODAL CRUD -------
 const isModalOpen = ref(false)
 const isEditing = ref(false)
 const editingId = ref<number | null>(null)
@@ -42,7 +50,7 @@ const form = ref({
   name: ''
 })
 
-// -------------------- HELPERS --------------------
+// ================== HELPERS: สกุลเงินในระบบ ==================
 const currencies = computed(() =>
   currenciesRaw.value.map((c) => ({
     ...c,
@@ -50,22 +58,17 @@ const currencies = computed(() =>
   }))
 )
 
-const allCodes = computed(() => currencies.value.map((c) => c.code))
+// code จาก backend (ไม่ได้ใช้ตอนนี้เยอะ แต่เก็บไว้เผื่อ)
+const allCodesFromDb = computed(() => currencies.value.map((c) => c.code))
 
-// code ที่ให้เลือกใน dropdown (มี THB เพิ่มให้แน่ ๆ)
-const selectableCodes = computed(() => {
-  const set = new Set<string>(['THB', ...allCodes.value])
-  return Array.from(set)
-})
-
-// code ทั้งหมดที่มี live rate (ใช้กับ converter)
+// ใช้กับ converter: THB + ทุกสกุลที่มี live rate
 const converterCodes = computed(() => {
   const set = new Set<string>(['THB', ...Object.keys(thbRates.value)])
   return Array.from(set).sort()
 })
 
-// ประเทศยอดนิยม (ปุ่มลัด)
-const popularPreset = ['JPY', 'KRW', 'CNY', 'USD', 'EUR']
+// preset ประเทศยอดนิยม (ปุ่มลัด)
+const popularPreset = ['JPY', 'KRW', 'CNY', 'USD', 'EUR', 'THB']
 const popularCodes = computed(() =>
   popularPreset.filter((c) => converterCodes.value.includes(c))
 )
@@ -95,7 +98,14 @@ const formatLiveRateCodeToTHB = (code: string): string | null => {
   return codeToThb.toFixed(4)
 }
 
-// คำนวณอัตราแลกเปลี่ยนทั่วไป: 1 from = ? to
+// preview live rate ใน modal เพิ่ม / แก้
+const previewLiveRateForForm = computed(() => {
+  if (!form.value.code) return null
+  const r = formatLiveRateCodeToTHB(form.value.code.toUpperCase())
+  return r
+})
+
+// ================== HELPER: คำนวณ FX ==================
 const calcRate = (from: string, to: string): number | null => {
   if (!from || !to) return null
   from = from.toUpperCase()
@@ -116,23 +126,47 @@ const calcRate = (from: string, to: string): number | null => {
   return fromToThb * thbToTo
 }
 
-// rate ปัจจุบันของ quick converter
 const fxRate = computed(() => calcRate(fxFrom.value, fxTo.value))
 
-// จำนวนเงินที่แลกได้
 const fxConverted = computed(() => {
   const r = fxRate.value
   if (r == null) return null
   return fxAmount.value * r
 })
 
-// text แสดง rate 1 from → to
 const fxRateText = computed(() => {
   if (fxRate.value == null) return null
   return `1 ${fxFrom.value} ≈ ${fxRate.value.toFixed(4)} ${fxTo.value}`
 })
 
-// -------------------- LOAD BACKEND --------------------
+// ================== SEARCHABLE DROPDOWN HELPERS ==================
+const filteredFromCodes = computed(() => {
+  const q = fromSearch.value.trim().toLowerCase()
+  return converterCodes.value.filter((code) => {
+    const label = (getCurrencyLabel(code) || '').toLowerCase()
+    return !q || code.toLowerCase().includes(q) || label.includes(q)
+  })
+})
+
+const filteredToCodes = computed(() => {
+  const q = toSearch.value.trim().toLowerCase()
+  return converterCodes.value.filter((code) => {
+    const label = (getCurrencyLabel(code) || '').toLowerCase()
+    return !q || code.toLowerCase().includes(q) || label.includes(q)
+  })
+})
+
+const selectFromCode = (code: string) => {
+  fxFrom.value = code
+  isFromOpen.value = false
+}
+
+const selectToCode = (code: string) => {
+  fxTo.value = code
+  isToOpen.value = false
+}
+
+// ================== LOAD BACKEND ==================
 const loadCurrencies = async () => {
   try {
     isLoading.value = true
@@ -140,9 +174,12 @@ const loadCurrencies = async () => {
     const res: any = await $fetch(BACKEND_API)
     currenciesRaw.value = res?.data ?? res ?? []
 
-    // ให้ fxTo เป็นสกุลแรกถ้า USD ไม่มีในระบบ
-    if (currencies.value.length > 0 && !converterCodes.value.includes(fxTo.value)) {
-      fxTo.value = currencies.value[0].code
+    // ถ้า fxTo ยังไม่อยู่ใน list ให้เปลี่ยนเป็นตัวแรกที่มี
+    if (
+      converterCodes.value.length > 0 &&
+      !converterCodes.value.includes(fxTo.value)
+    ) {
+      fxTo.value = converterCodes.value[0]
     }
   } catch (err) {
     console.error('Failed to load currencies', err)
@@ -152,7 +189,7 @@ const loadCurrencies = async () => {
   }
 }
 
-// -------------------- LOAD LIVE RATES (THB base) --------------------
+// ================== LOAD LIVE RATES (THB base) ==================
 const loadLiveRates = async () => {
   try {
     isLiveLoading.value = true
@@ -200,7 +237,26 @@ onMounted(async () => {
   await loadLiveRates()
 })
 
-// -------------------- CRUD --------------------
+// ================== AUTO-FILL NAME จาก CODE ==================
+watch(
+  () => form.value.code,
+  (val) => {
+    if (!val) return
+    const code = val.toUpperCase()
+    form.value.code = code
+
+    if (!form.value.name.trim()) {
+      const meta = currencyMeta[code]
+      if (meta) {
+        form.value.name = meta.country
+          ? `${meta.name} (${meta.country})`
+          : meta.name
+      }
+    }
+  }
+)
+
+// ================== CRUD ==================
 const openAdd = () => {
   isEditing.value = false
   editingId.value = null
@@ -231,7 +287,7 @@ const saveCurrency = async () => {
   try {
     const code = form.value.code.toUpperCase()
 
-    // ให้ API เป็นคนกำหนด rate (1 CODE = ? THB จาก live rate)
+    // เอา rate จาก live ถ้ามี
     const systemRate = getSystemRateToTHB(code)
 
     const payload: any = {
@@ -284,209 +340,303 @@ const swapFx = () => {
 }
 </script>
 
-
 <template>
   <div class="min-h-[calc(100vh-72px)] bg-slate-50 px-4 py-4 md:px-6 md:py-6">
     <div class="mx-auto w-full max-w-3xl space-y-4 md:space-y-6">
-      <!-- HEADER -->
+      <!-- ================= HEADER ================= -->
       <div class="space-y-1">
         <h1 class="text-xl font-semibold text-slate-800 md:text-2xl">
           Currency Management
         </h1>
         <p class="text-xs text-slate-500 md:text-sm">
-          จัดการสกุลเงิน และดูอัตราแลกเปลี่ยนจาก
-          <span class="font-semibold text-orange-500">THB</span>
-          แบบเรียลไทม์
+          จัดการสกุลเงิน และดูอัตราแลกเปลี่ยนจาก THB แบบเรียลไทม์
         </p>
         <p v-if="liveError" class="text-[11px] text-red-500">
           {{ liveError }}
         </p>
       </div>
 
-      <!-- QUICK FX CONVERTER -->
-      <div class="rounded-2xl bg-white p-4 shadow-sm md:p-5">
-        <h2 class="text-sm font-semibold text-slate-800 md:text-base">
-          Quick FX Converter
-        </h2>
-        <p class="mt-1 text-[11px] text-slate-500 md:text-xs">
-          เลือกสกุลต้นทาง/ปลายทางแล้วใส่จำนวนเงิน ระบบจะใช้ค่า
-          <span class="font-semibold text-emerald-600">live rate</span>
-          ล่าสุดจากตลาด
-        </p>
+      <!-- ============ QUICK FX CONVERTER CARD ============ -->
+      <div class="rounded-2xl bg-white p-4 md:p-6 shadow-sm space-y-4">
+        <div class="space-y-1">
+          <h2 class="text-base font-semibold text-slate-800 md:text-lg">
+            Quick FX Converter
+          </h2>
+          <p class="text-xs text-slate-500 md:text-sm">
+            เลือกสกุลเงินต้นทาง / ปลายทาง แล้วใส่จำนวนเงิน ระบบจะใช้ค่า
+            <span class="font-medium text-emerald-600">live rate</span> ล่าสุดจากตลาด
+          </p>
+        </div>
 
-        <div class="mt-4 grid gap-3 md:grid-cols-[1.2fr_1fr_1fr_auto] md:items-center">
-          <!-- Amount -->
-          <div>
-            <label class="mb-1 block text-[11px] font-medium text-slate-700 md:text-xs">
+        <!-- แถว Amount -->
+        <div class="grid gap-3 md:grid-cols-[minmax(0,240px)_1fr] md:items-end">
+          <div class="space-y-1">
+            <label class="block text-xs font-medium text-slate-700 md:text-sm">
               Amount
             </label>
             <input
               v-model.number="fxAmount"
               type="number"
               min="0"
-              class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400"
+              class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none
+                     focus:border-orange-400 focus:ring-1 focus:ring-orange-400"
             />
           </div>
+        </div>
 
-          <!-- From -->
-          <div>
-            <label class="mb-1 block text-[11px] font-medium text-slate-700 md:text-xs">
+        <!-- ======= แถว From / Swap / To (searchable dropdown) ======= -->
+        <div class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-3 md:gap-4 md:items-end">
+          <!-- ---------- From dropdown ---------- -->
+          <div class="space-y-1">
+            <label class="block text-xs font-medium text-slate-700 md:text-sm">
               From
             </label>
-            <select
-              v-model="fxFrom"
-              class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400"
-            >
-              <option
-                v-for="code in converterCodes"
-                :key="'from-' + code"
-                :value="code"
+
+            <div class="relative">
+              <!-- ปุ่มหลัก -->
+              <button
+                type="button"
+                @click="isFromOpen = !isFromOpen"
+                class="flex w-full items-center justify-between rounded-xl border border-slate-200 px-3 py-2.5 text-sm
+                       bg-white text-left outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400"
               >
-                {{ code }}
-              </option>
-            </select>
+                <span>
+                  {{ fxFrom }} -
+                  {{ getCurrencyLabel(fxFrom) || 'Unknown currency' }}
+                </span>
+                <span class="ml-2 text-xs text-slate-400">▾</span>
+              </button>
+
+              <!-- แผง dropdown + search -->
+              <div
+                v-if="isFromOpen"
+                class="absolute z-20 mt-1 w-full rounded-xl border border-slate-200 bg-white shadow-lg"
+              >
+                <!-- search -->
+                <div class="border-b border-slate-100 p-2">
+                  <input
+                    v-model="fromSearch"
+                    type="text"
+                    class="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs outline-none
+                           focus:border-orange-400 focus:ring-1 focus:ring-orange-400"
+                    placeholder="ค้นหาด้วย code หรือชื่อประเทศ"
+                  />
+                </div>
+
+                <!-- list -->
+                <div class="max-h-60 overflow-y-auto py-1 text-sm">
+                  <button
+                    v-for="code in filteredFromCodes"
+                    :key="code"
+                    type="button"
+                    @click="selectFromCode(code)"
+                    class="flex w-full items-start px-3 py-1.5 text-left hover:bg-orange-50"
+                  >
+                    <span class="font-medium text-slate-800 w-14">
+                      {{ code }}
+                    </span>
+                    <span class="ml-2 text-slate-500 text-xs md:text-[13px]">
+                      {{ getCurrencyLabel(code) || 'Unknown currency' }}
+                    </span>
+                  </button>
+
+                  <div
+                    v-if="filteredFromCodes.length === 0"
+                    class="px-3 py-2 text-xs text-slate-400"
+                  >
+                    ไม่พบสกุลเงินที่ตรงกับคำค้นหา
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <!-- To -->
-          <div>
-            <label class="mb-1 block text-[11px] font-medium text-slate-700 md:text-xs">
+          <!-- ---------- ปุ่มสลับ ---------- -->
+          <div class="flex items-end justify-center pb-1">
+            <button
+              type="button"
+              @click="swapFx"
+              class="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200
+                     text-slate-600 hover:bg-slate-50 active:scale-95"
+              title="Swap From / To"
+            >
+              ⇄
+            </button>
+          </div>
+
+          <!-- ---------- To dropdown ---------- -->
+          <div class="space-y-1">
+            <label class="block text-xs font-medium text-slate-700 md:text-sm">
               To
             </label>
-            <select
-              v-model="fxTo"
-              class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400"
-            >
-              <option
-                v-for="code in converterCodes"
-                :key="'to-' + code"
-                :value="code"
-              >
-                {{ code }}
-              </option>
-            </select>
-          </div>
 
-          <!-- Swap -->
-          <button
-            type="button"
-            @click="swapFx"
-            class="mt-2 inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50 active:scale-95 md:mt-6"
-            title="Swap"
-          >
-            ⇄
-          </button>
+            <div class="relative">
+              <!-- ปุ่มหลัก -->
+              <button
+                type="button"
+                @click="isToOpen = !isToOpen"
+                class="flex w-full items-center justify-between rounded-xl border border-slate-200 px-3 py-2.5 text-sm
+                       bg-white text-left outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400"
+              >
+                <span>
+                  {{ fxTo }} -
+                  {{ getCurrencyLabel(fxTo) || 'Unknown currency' }}
+                </span>
+                <span class="ml-2 text-xs text-slate-400">▾</span>
+              </button>
+
+              <!-- แผง dropdown + search -->
+              <div
+                v-if="isToOpen"
+                class="absolute z-20 mt-1 w-full rounded-xl border border-slate-200 bg-white shadow-lg"
+              >
+                <!-- search -->
+                <div class="border-b border-slate-100 p-2">
+                  <input
+                    v-model="toSearch"
+                    type="text"
+                    class="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-xs outline-none
+                           focus:border-orange-400 focus:ring-1 focus:ring-orange-400"
+                    placeholder="ค้นหาด้วย code หรือชื่อประเทศ"
+                  />
+                </div>
+
+                <!-- list -->
+                <div class="max-h-60 overflow-y-auto py-1 text-sm">
+                  <button
+                    v-for="code in filteredToCodes"
+                    :key="code"
+                    type="button"
+                    @click="selectToCode(code)"
+                    class="flex w-full items-start px-3 py-1.5 text-left hover:bg-orange-50"
+                  >
+                    <span class="font-medium text-slate-800 w-14">
+                      {{ code }}
+                    </span>
+                    <span class="ml-2 text-slate-500 text-xs md:text-[13px]">
+                      {{ getCurrencyLabel(code) || 'Unknown currency' }}
+                    </span>
+                  </button>
+
+                  <div
+                    v-if="filteredToCodes.length === 0"
+                    class="px-3 py-2 text-xs text-slate-400"
+                  >
+                    ไม่พบสกุลเงินที่ตรงกับคำค้นหา
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <!-- Preset -->
-        <div
-          v-if="popularCodes.length"
-          class="mt-3 flex flex-wrap items-center gap-2 text-[11px] md:text-xs"
-        >
-          <span class="text-slate-500">ยอดนิยม:</span>
+        <!-- ปุ่มยอดนิยม -->
+        <div class="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 md:text-xs">
+          <span class="mr-1">ยอดนิยม:</span>
           <button
             v-for="code in popularCodes"
-            :key="'pop-' + code"
+            :key="code"
             type="button"
-            @click="fxFrom = 'THB'; fxTo = code"
-            class="rounded-full border border-slate-200 px-2 py-1 text-[11px] text-slate-700 hover:border-orange-400 hover:text-orange-500 active:scale-95"
+            @click="fxTo = code"
+            class="rounded-full border border-slate-200 px-3 py-1 text-[11px] font-medium
+                   text-slate-600 hover:border-orange-400 hover:text-orange-500 active:scale-95"
           >
-            THB → {{ code }}
+            {{ code }}
+            <span v-if="getCurrencyLabel(code)">
+              · {{ getCurrencyLabel(code) }}
+            </span>
           </button>
         </div>
 
-        <!-- Result -->
-        <div class="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-700 md:text-xs">
-          <div v-if="fxConverted != null && fxRate != null">
-            <div class="font-medium text-slate-800">
-              {{ fxAmount }} {{ fxFrom }} ≈
-              <span class="text-emerald-600">
-                {{ fxConverted.toFixed(4) }} {{ fxTo }}
-              </span>
-            </div>
-            <div class="mt-1 text-slate-500">
-              {{ fxRateText }}
-            </div>
+        <!-- ผลลัพธ์ -->
+        <div class="mt-1 space-y-1 text-xs md:text-sm">
+          <div v-if="fxConverted != null" class="font-semibold text-emerald-600">
+            {{ fxAmount || 0 }} {{ fxFrom }} ≈ {{ fxConverted.toFixed(4) }} {{ fxTo }}
           </div>
-          <div v-else>
-            ยังไม่มีค่า live rate สำหรับคู่สกุลเงินที่เลือก
+          <div v-if="fxRateText" class="text-slate-500">
+            {{ fxRateText }}
+          </div>
+          <div v-else class="text-slate-400">
+            ยังไม่พบ live rate สำหรับคู่สกุลนี้
           </div>
         </div>
       </div>
 
-      <!-- SYSTEM CURRENCIES -->
-      <div class="rounded-2xl bg-white p-3 shadow-sm md:p-4 min-h-[200px] flex flex-col">
-        <div class="mb-3 flex items-center justify-between">
-          <h2 class="text-sm font-semibold text-slate-800 md:text-base">
+      <!-- ============ SYSTEM CURRENCIES LIST ============ -->
+      <div class="rounded-2xl bg-white p-4 md:p-5 shadow-sm space-y-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-base font-semibold text-slate-800 md:text-lg">
             System Currencies
           </h2>
           <button
             type="button"
             @click="openAdd"
-            class="inline-flex items-center rounded-full bg-orange-500 px-4 py-2 text-xs font-medium text-white shadow hover:bg-orange-600 active:scale-95 md:text-sm"
+            class="inline-flex items-center rounded-full bg-orange-500 px-4 py-2 text-xs md:text-sm
+                   font-medium text-white shadow hover:bg-orange-600 active:scale-[0.98]"
           >
             + Add Currency
           </button>
         </div>
 
-        <div v-if="isLoading" class="flex-1 py-6 text-center text-sm text-slate-400">
+        <!-- loading / error / empty -->
+        <div v-if="isLoading" class="py-8 text-center text-sm text-slate-400">
           กำลังโหลดข้อมูลสกุลเงิน...
         </div>
 
-        <div v-else-if="isError" class="flex-1 py-6 text-center text-sm text-red-500">
+        <div v-else-if="isError" class="py-8 text-center text-sm text-red-500">
           ไม่สามารถโหลดข้อมูลได้
         </div>
 
         <div
           v-else-if="currencies.length === 0"
-          class="flex-1 py-6 text-center text-sm text-slate-400"
+          class="py-8 text-center text-sm text-slate-400"
         >
           ยังไม่มีสกุลเงินในระบบ ลองเพิ่มสกุลแรกดูก่อน
         </div>
 
-        <div v-else class="flex-1 space-y-2 overflow-y-auto pt-1 md:space-y-3 md:pt-2">
+        <div v-else class="space-y-2 md:space-y-3">
           <div
             v-for="cur in currencies"
             :key="cur.id"
-            class="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 text-sm md:text-base hover:bg-slate-100 transition active:scale-[0.99]"
+            class="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 text-sm md:text-base
+                   hover:bg-slate-100 transition active:scale-[0.99]"
           >
-            <div class="flex flex-col">
+            <!-- LEFT: Info -->
+            <div class="flex flex-col gap-0.5">
               <div class="flex items-center gap-2">
                 <span class="font-semibold text-slate-800">
                   {{ cur.code }}
                 </span>
                 <span class="text-slate-500">
-                  - {{ cur.name }}
+                  - {{ getCurrencyLabel(cur.code) || cur.name }}
                 </span>
               </div>
 
               <!-- System Rate -->
-              <div class="mt-1 text-[11px] text-slate-500 md:text-xs">
+              <div class="text-[11px] text-slate-500 md:text-xs">
                 <span class="font-medium text-slate-700">System Rate (ต่อ THB):</span>
                 1 {{ cur.code }} =
-                {{ cur.rate_to_base ?? '—' }} THB
+                <span class="font-medium">
+                  {{ cur.rate_to_base ?? '—' }} THB
+                </span>
               </div>
 
-              <!-- Live Rate 1 CODE -> THB -->
-              <div
-                v-if="formatLiveRateCodeToTHB(cur.code)"
-                class="mt-0.5 text-[11px] text-emerald-600 md:text-xs"
-              >
+              <!-- Live Rate (จาก API) 1 CODE ≈ ? THB -->
+              <div class="text-[11px] text-emerald-600 md:text-xs">
                 <span class="font-medium">Live Rate:</span>
-                1 {{ cur.code }} ≈
-                {{ formatLiveRateCodeToTHB(cur.code) }}
-                THB
-              </div>
-              <div
-                v-else
-                class="mt-0.5 text-[11px] text-slate-400 md:text-xs"
-              >
-                ยังไม่มีค่า live rate สำหรับ {{ cur.code }} เทียบกับ THB
+                <template v-if="formatLiveRateCodeToTHB(cur.code)">
+                  1 {{ cur.code }} ≈
+                  {{ formatLiveRateCodeToTHB(cur.code) }} THB
+                </template>
+                <template v-else>
+                  ยังไม่มีค่า live rate สำหรับ {{ cur.code }} เทียบกับ THB
+                </template>
               </div>
             </div>
 
+            <!-- RIGHT: Actions -->
             <div class="flex items-center gap-3 text-slate-500">
               <button
-                type="button"
                 @click="openEdit(cur)"
                 class="rounded-full p-1.5 hover:bg-white/80 hover:text-slate-700 active:scale-95"
                 title="Edit"
@@ -494,7 +644,6 @@ const swapFx = () => {
                 ✎
               </button>
               <button
-                type="button"
                 @click="deleteCurrency(cur)"
                 class="rounded-full p-1.5 hover:bg-white/80 hover:text-red-600 active:scale-95"
                 title="Delete"
@@ -505,9 +654,10 @@ const swapFx = () => {
           </div>
         </div>
       </div>
+      <!-- /SYSTEM CURRENCIES -->
     </div>
 
-    <!-- MODAL -->
+    <!-- ================ MODAL ADD / EDIT ================ -->
     <div
       v-if="isModalOpen"
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
@@ -518,7 +668,6 @@ const swapFx = () => {
             {{ isEditing ? 'Edit Currency' : 'Add Currency' }}
           </h2>
           <button
-            type="button"
             @click="closeModal"
             class="text-slate-400 hover:text-slate-600 active:scale-95"
           >
@@ -527,6 +676,7 @@ const swapFx = () => {
         </div>
 
         <div class="space-y-4">
+          <!-- CODE -->
           <div>
             <label class="mb-1 block text-xs font-medium text-slate-700 md:text-sm">
               Currency Code (e.g., USD)
@@ -534,54 +684,46 @@ const swapFx = () => {
             <input
               v-model="form.code"
               type="text"
-              class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400"
-              placeholder="เช่น THB, USD, EUR"
+              class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm uppercase outline-none
+                     focus:border-orange-400 focus:ring-1 focus:ring-orange-400"
+              placeholder="เช่น THB, USD, JPY"
             />
           </div>
 
+          <!-- NAME -->
           <div>
             <label class="mb-1 block text-xs font-medium text-slate-700 md:text-sm">
-              Currency Name (e.g., US Dollar)
+              Currency Name
             </label>
             <input
               v-model="form.name"
               type="text"
-              class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400"
-              placeholder="ชื่อเต็มของสกุลเงิน"
+              class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none
+                     focus:border-orange-400 focus:ring-1 focus:ring-orange-400"
+              placeholder="ชื่อเต็มของสกุลเงิน (Auto-fill จาก code ได้)"
             />
           </div>
 
-          <!-- Preview จาก live rate -->
-          <div class="rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-600 md:text-xs">
-            <div class="font-medium text-slate-700 mb-1">
-              Preview จาก live rate
-            </div>
-            <div v-if="formatLiveRateCodeToTHB(form.code)">
-              1 {{ form.code.toUpperCase() }} ≈
-              <span class="text-emerald-600 font-medium">
-                {{ formatLiveRateCodeToTHB(form.code) }}
-              </span>
-              THB
-            </div>
-            <div v-else>
-              ยังไม่พบ live rate สำหรับ
-              <span class="font-medium">
-                {{ form.code ? form.code.toUpperCase() : 'สกุลนี้' }}
-              </span>
-            </div>
+          <!-- preview live rate -->
+          <div
+            v-if="previewLiveRateForForm"
+            class="rounded-lg bg-emerald-50 px-3 py-2 text-[11px] text-emerald-700 md:text-xs"
+          >
+            Preview จาก live rate:
+            <span class="font-semibold">
+              1 {{ form.code.toUpperCase() }} ≈ {{ previewLiveRateForForm }} THB
+            </span>
           </div>
         </div>
 
         <div class="mt-5 flex justify-end gap-3">
           <button
-            type="button"
             @click="closeModal"
             class="text-xs text-slate-500 hover:text-slate-700 md:text-sm"
           >
             Cancel
           </button>
           <button
-            type="button"
             @click="saveCurrency"
             class="rounded-lg bg-orange-500 px-4 py-2 text-xs font-medium text-white hover:bg-orange-600 active:scale-95 md:text-sm"
           >
@@ -590,5 +732,6 @@ const swapFx = () => {
         </div>
       </div>
     </div>
+    <!-- /MODAL -->
   </div>
 </template>
