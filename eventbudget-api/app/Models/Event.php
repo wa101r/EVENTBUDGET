@@ -13,19 +13,19 @@ class Event extends Model
 
     // ใส่ชื่อ "คอลัมน์จริงใน DB" เท่านั้น
     protected $fillable = [
-        'name',
-        'description',
-        'start_date',
-        'end_date',
-        'client_name',
-        'location',
-        'total_budget',
-        'venue_name',
-        'venue_url',
-        'accommodation_name',
-        'accommodation_url',
-        'drive_link',
-    ];
+    'name',
+    'description',
+    'start_date',
+    'end_date',
+    'client_name',
+    'location',
+    'venue_name',
+    'drive_link',
+    'base_total',
+    'currency_code',
+];
+
+
 
     protected $casts = [
         'start_date' => 'date',

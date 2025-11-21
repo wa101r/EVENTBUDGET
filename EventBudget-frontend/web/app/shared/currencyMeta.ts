@@ -1,6 +1,11 @@
+// web/app/shared/currencyMeta.ts
 export interface CurrencyInfo {
+  /** ชื่อเต็มของสกุลเงิน */
   name: string
+  /** ประเทศหลักที่ใช้ (ถ้ามี) */
   country?: string
+  /** ไอคอน / ธง ของสกุลเงิน (optional) */
+  emoji?: string
 }
 
 /**
