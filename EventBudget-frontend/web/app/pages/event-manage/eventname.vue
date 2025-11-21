@@ -80,6 +80,26 @@ const budgetCodes = computed(() => {
   return Array.from(set).sort();
 });
 
+// กรองสกุลเงินจากช่องค้นหา (บนหัวหน้า)
+const filteredBudgetCodes = computed(() => {
+  const q = budgetQuery.value.trim().toLowerCase();
+  if (!q) return budgetCodes.value;
+  return budgetCodes.value.filter((code) => {
+    const label = (getCurrencyLabel(code) || "").toLowerCase();
+    return code.toLowerCase().includes(q) || label.includes(q);
+  });
+});
+
+// กรองสกุลเงินสำหรับฟอร์ม event
+const filteredEventCurrencyCodes = computed(() => {
+  const q = eventCurrencyQuery.value.trim().toLowerCase();
+  if (!q) return budgetCodes.value;
+  return budgetCodes.value.filter((code) => {
+    const label = (getCurrencyLabel(code) || "").toLowerCase();
+    return code.toLowerCase().includes(q) || label.includes(q);
+  });
+});
+
 // พวกยอดนิยม เอาไว้โชว์ใน select ง่าย ๆ (optional)
 const popularBudgetPreset = ["THB", "USD", "EUR", "JPY", "KRW", "CNY"];
 
@@ -198,8 +218,32 @@ const toggleMenu = (id) => {
 };
 const closeMenu = () => (openMenuId.value = null);
 
+// dropdown เลือกสกุลเงิน (พร้อมค้นหา)
+const isBudgetDropdownOpen = ref(false);
+const budgetQuery = ref("");
+const toggleBudgetDropdown = () => (isBudgetDropdownOpen.value = !isBudgetDropdownOpen.value);
+const closeBudgetDropdown = () => (isBudgetDropdownOpen.value = false);
+const setBudgetCurrency = (code) => {
+  budgetCurrency.value = code;
+  closeBudgetDropdown();
+};
+
+const isEventCurrencyDropdownOpen = ref(false);
+const eventCurrencyQuery = ref("");
+const toggleEventCurrencyDropdown = () => (isEventCurrencyDropdownOpen.value = !isEventCurrencyDropdownOpen.value);
+const closeEventCurrencyDropdown = () => (isEventCurrencyDropdownOpen.value = false);
+const setEventCurrency = (code) => {
+  newEvent.value.currency_code = code;
+  closeEventCurrencyDropdown();
+};
+
 const onClickOutside = (ev) => {
-  if (!ev.target.closest?.(".event-actions")) closeMenu();
+  const t = ev.target;
+  // ปิด action menu ถ้าคลิกนอก
+  if (!t.closest?.(".event-actions")) closeMenu();
+  // ปิด dropdown สกุลเงิน ถ้าคลิกนอก
+  if (!t.closest?.(".currency-dropdown")) closeBudgetDropdown();
+  if (!t.closest?.(".event-currency-dropdown")) closeEventCurrencyDropdown();
 };
 
 onMounted(() => {
@@ -410,20 +454,55 @@ const saveEvent = async () => {
             <span class="text-left sm:text-right">
               แสดงงบประมาณโดยประมาณเป็น
             </span>
-            <select
-              v-model="budgetCurrency"
-              class="w-full sm:w-auto rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] md:text-xs
-                     outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400"
-            >
-              <option
-                v-for="code in budgetCodes"
-                :key="code"
-                :value="code"
+
+            <!-- custom dropdown + search -->
+            <div class="currency-dropdown relative w-full sm:w-auto">
+              <button
+                type="button"
+                @click.stop="toggleBudgetDropdown"
+                class="w-full sm:w-[320px] rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] md:text-xs
+                       flex items-center justify-between gap-2 outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400"
               >
-                {{ code }} -
-                {{ getCurrencyLabel(code) || "Unknown currency" }}
-              </option>
-            </select>
+                <span class="truncate">
+                  {{ budgetCurrency }} - {{ getCurrencyLabel(budgetCurrency) || 'Unknown currency' }}
+                </span>
+                <Icon name="ph:caret-down-bold" size="14" class="shrink-0" />
+              </button>
+
+              <Transition name="fade-scale">
+                <div
+                  v-if="isBudgetDropdownOpen"
+                  class="absolute right-0 mt-2 z-30 w-full sm:w-[320px] rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden"
+                >
+                  <div class="p-2 border-b border-slate-100">
+                    <input
+                      v-model="budgetQuery"
+                      type="text"
+                      placeholder="Search currency..."
+                      class="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                    />
+                  </div>
+
+                  <div class="max-h-72 overflow-auto py-1">
+                    <button
+                      v-for="code in filteredBudgetCodes"
+                      :key="code"
+                      type="button"
+                      @click="setBudgetCurrency(code)"
+                      class="w-full px-3 py-2 text-left text-xs hover:bg-slate-50 flex items-center justify-between gap-2"
+                      :class="code === budgetCurrency ? 'bg-slate-100 font-medium' : ''"
+                    >
+                      <span class="truncate">{{ code }} - {{ getCurrencyLabel(code) || 'Unknown' }}</span>
+                      <Icon v-if="code === budgetCurrency" name="ph:check-bold" size="12" />
+                    </button>
+
+                    <p v-if="filteredBudgetCodes.length === 0" class="px-3 py-3 text-xs text-slate-400">
+                      ไม่พบสกุลเงินที่ค้นหา
+                    </p>
+                  </div>
+                </div>
+              </Transition>
+            </div>
           </div>
         </div>
 
@@ -632,19 +711,53 @@ const saveEvent = async () => {
 
             <!-- สกุลเงินหลักของอีเวนต์ -->
             <FormField label="Event Currency">
-              <select
-                v-model="newEvent.currency_code"
-                class="form-input-light"
-              >
-                <option
-                  v-for="code in budgetCodes"
-                  :key="code"
-                  :value="code"
+              <div class="event-currency-dropdown relative">
+                <button
+                  type="button"
+                  @click.stop="toggleEventCurrencyDropdown"
+                  class="form-input-light flex items-center justify-between gap-2"
                 >
-                  {{ code }} -
-                  {{ getCurrencyLabel(code) || "Unknown currency" }}
-                </option>
-              </select>
+                  <span class="truncate">
+                    {{ (newEvent.currency_code || 'THB').toUpperCase() }} -
+                    {{ getCurrencyLabel(newEvent.currency_code || 'THB') || 'Unknown currency' }}
+                  </span>
+                  <Icon name="ph:caret-down-bold" size="14" class="shrink-0" />
+                </button>
+
+                <Transition name="fade-scale">
+                  <div
+                    v-if="isEventCurrencyDropdownOpen"
+                    class="absolute left-0 right-0 mt-2 z-30 rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden"
+                  >
+                    <div class="p-2 border-b border-slate-100">
+                      <input
+                        v-model="eventCurrencyQuery"
+                        type="text"
+                        placeholder="Search currency..."
+                        class="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                      />
+                    </div>
+
+                    <div class="max-h-72 overflow-auto py-1">
+                      <button
+                        v-for="code in filteredEventCurrencyCodes"
+                        :key="code"
+                        type="button"
+                        @click="setEventCurrency(code)"
+                        class="w-full px-3 py-2 text-left text-xs hover:bg-slate-50 flex items-center justify-between gap-2"
+                        :class="code === (newEvent.currency_code || 'THB').toUpperCase() ? 'bg-slate-100 font-medium' : ''"
+                      >
+                        <span class="truncate">{{ code }} - {{ getCurrencyLabel(code) || 'Unknown' }}</span>
+                        <Icon v-if="code === (newEvent.currency_code || 'THB').toUpperCase()" name="ph:check-bold" size="12" />
+                      </button>
+
+                      <p v-if="filteredEventCurrencyCodes.length === 0" class="px-3 py-3 text-xs text-slate-400">
+                        ไม่พบสกุลเงินที่ค้นหา
+                      </p>
+                    </div>
+                  </div>
+                </Transition>
+              </div>
             </FormField>
 
             <!-- งบ base + preview เป็นสกุลที่เลือกในหัวข้อ -->
