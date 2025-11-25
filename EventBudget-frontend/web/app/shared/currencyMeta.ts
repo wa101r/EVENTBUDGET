@@ -1,4 +1,5 @@
 // web/app/shared/currencyMeta.ts
+
 export interface CurrencyInfo {
   /** ชื่อเต็มของสกุลเงิน */
   name: string
@@ -6,202 +7,135 @@ export interface CurrencyInfo {
   country?: string
   /** ไอคอน / ธง ของสกุลเงิน (optional) */
   emoji?: string
+  /** ใช้สร้างธงอัตโนมัติ (ISO country code) */
+  countryCode?: string
 }
 
 /**
- * Currency metadata — ครบทุกสกุลเงิน ISO-4217
+ * helper: ทำ countryCode -> emoji ธง (เช่น 'US' -> 🇺🇸)
+ * ถ้าใส่ countryCode มาแต่ไม่ใส่ emoji จะสร้างให้อัตโนมัติ
+ */
+export const countryCodeToFlag = (cc?: string): string | undefined => {
+  if (!cc || cc.length !== 2) return undefined
+  const code = cc.toUpperCase()
+  // Regional Indicator Symbols
+  const A = 0x1f1e6
+  const chars = [...code].map(ch => String.fromCodePoint(A + ch.charCodeAt(0) - 65))
+  return chars.join('')
+}
+
+/**
+ * Currency metadata — ใส่ธง “ตัวจริง” ให้สกุลหลัก ๆ + countryCode สำหรับ auto-flag
+ * สกุลที่ใช้หลายประเทศ/ไม่มีธงชัดเจน จะใช้ emoji เฉพาะของสกุล (เช่น 💶) หรือ 🌐
  */
 export const currencyMeta: Record<string, CurrencyInfo> = {
-  USD: { name: "US Dollar", country: "United States" },
-  AED: { name: "UAE Dirham", country: "United Arab Emirates" },
-  AFN: { name: "Afghan Afghani", country: "Afghanistan" },
-  ALL: { name: "Albanian Lek", country: "Albania" },
-  AMD: { name: "Armenian Dram", country: "Armenia" },
-  ANG: { name: "Netherlands Antillean Guilder", country: "Curaçao / Sint Maarten" },
-  AOA: { name: "Angolan Kwanza", country: "Angola" },
-  ARS: { name: "Argentine Peso", country: "Argentina" },
-  AUD: { name: "Australian Dollar", country: "Australia" },
-  AWG: { name: "Aruban Florin", country: "Aruba" },
-  AZN: { name: "Azerbaijani Manat", country: "Azerbaijan" },
+  // ===== Popular / Main =====
+  USD: { name: "US Dollar", country: "United States", countryCode: "US", emoji: "🇺🇸" },
+  THB: { name: "Thai Baht", country: "Thailand", countryCode: "TH", emoji: "🇹🇭" },
+  EUR: { name: "Euro", country: "Eurozone", emoji: "🇪🇺" },
+  GBP: { name: "British Pound Sterling", country: "United Kingdom", countryCode: "GB", emoji: "🇬🇧" },
+  JPY: { name: "Japanese Yen", country: "Japan", countryCode: "JP", emoji: "🇯🇵" },
+  KRW: { name: "South Korean Won", country: "South Korea", countryCode: "KR", emoji: "🇰🇷" },
+  CNY: { name: "Chinese Yuan", country: "China", countryCode: "CN", emoji: "🇨🇳" },
+  HKD: { name: "Hong Kong Dollar", country: "Hong Kong", countryCode: "HK", emoji: "🇭🇰" },
+  SGD: { name: "Singapore Dollar", country: "Singapore", countryCode: "SG", emoji: "🇸🇬" },
+  AUD: { name: "Australian Dollar", country: "Australia", countryCode: "AU", emoji: "🇦🇺" },
+  CAD: { name: "Canadian Dollar", country: "Canada", countryCode: "CA", emoji: "🇨🇦" },
+  CHF: { name: "Swiss Franc", country: "Switzerland", countryCode: "CH", emoji: "🇨🇭" },
+  NZD: { name: "New Zealand Dollar", country: "New Zealand", countryCode: "NZ", emoji: "🇳🇿" },
 
-  BAM: { name: "Bosnia-Herzegovina Convertible Mark", country: "Bosnia and Herzegovina" },
-  BBD: { name: "Barbadian Dollar", country: "Barbados" },
-  BDT: { name: "Bangladeshi Taka", country: "Bangladesh" },
-  BGN: { name: "Bulgarian Lev", country: "Bulgaria" },
-  BHD: { name: "Bahraini Dinar", country: "Bahrain" },
-  BIF: { name: "Burundian Franc", country: "Burundi" },
-  BMD: { name: "Bermudian Dollar", country: "Bermuda" },
-  BND: { name: "Brunei Dollar", country: "Brunei" },
-  BOB: { name: "Bolivian Boliviano", country: "Bolivia" },
-  BRL: { name: "Brazilian Real", country: "Brazil" },
-  BSD: { name: "Bahamian Dollar", country: "Bahamas" },
-  BTN: { name: "Bhutanese Ngultrum", country: "Bhutan" },
-  BWP: { name: "Botswanan Pula", country: "Botswana" },
-  BYN: { name: "Belarusian Ruble", country: "Belarus" },
-  BZD: { name: "Belize Dollar", country: "Belize" },
+  // ===== Middle East & Central Asia =====
+  AED: { name: "UAE Dirham", country: "United Arab Emirates", countryCode: "AE", emoji: "🇦🇪" },
+  AFN: { name: "Afghan Afghani", country: "Afghanistan", countryCode: "AF", emoji: "🇦🇫" }, // เพิ่ม
+  AMD: { name: "Armenian Dram", country: "Armenia", countryCode: "AM", emoji: "🇦🇲" }, // เพิ่ม
+  AZN: { name: "Azerbaijani Manat", country: "Azerbaijan", countryCode: "AZ", emoji: "🇦🇿" }, // เพิ่ม
+  SAR: { name: "Saudi Riyal", country: "Saudi Arabia", countryCode: "SA", emoji: "🇸🇦" },
+  QAR: { name: "Qatari Riyal", country: "Qatar", countryCode: "QA", emoji: "🇶🇦" },
+  KWD: { name: "Kuwaiti Dinar", country: "Kuwait", countryCode: "KW", emoji: "🇰🇼" },
+  BHD: { name: "Bahraini Dinar", country: "Bahrain", countryCode: "BH", emoji: "🇧🇭" },
+  OMR: { name: "Omani Rial", country: "Oman", countryCode: "OM", emoji: "🇴🇲" },
+  ILS: { name: "Israeli New Shekel", country: "Israel", countryCode: "IL", emoji: "🇮🇱" },
+  IRR: { name: "Iranian Rial", country: "Iran", countryCode: "IR", emoji: "🇮🇷" },
+  IQD: { name: "Iraqi Dinar", country: "Iraq", countryCode: "IQ", emoji: "🇮🇶" },
+  JOD: { name: "Jordanian Dinar", country: "Jordan", countryCode: "JO", emoji: "🇯🇴" },
+  TRY: { name: "Turkish Lira", country: "Turkey", countryCode: "TR", emoji: "🇹🇷" },
+  YER: { name: "Yemeni Rial", country: "Yemen", countryCode: "YE", emoji: "🇾🇪" },
 
-  CAD: { name: "Canadian Dollar", country: "Canada" },
-  CDF: { name: "Congolese Franc", country: "DR Congo" },
-  CHF: { name: "Swiss Franc", country: "Switzerland / Liechtenstein" },
-  CLF: { name: "Chilean Unit of Account (UF)", country: "Chile" },
-  CLP: { name: "Chilean Peso", country: "Chile" },
-  CNH: { name: "Chinese Yuan (Offshore)", country: "China (Offshore)" },
-  CNY: { name: "Chinese Yuan", country: "China" },
-  COP: { name: "Colombian Peso", country: "Colombia" },
-  CRC: { name: "Costa Rican Colón", country: "Costa Rica" },
-  CUP: { name: "Cuban Peso", country: "Cuba" },
-  CVE: { name: "Cape Verdean Escudo", country: "Cabo Verde" },
-  CZK: { name: "Czech Koruna", country: "Czech Republic" },
+  // ===== Asia & Pacific =====
+  INR: { name: "Indian Rupee", country: "India", countryCode: "IN", emoji: "🇮🇳" },
+  IDR: { name: "Indonesian Rupiah", country: "Indonesia", countryCode: "ID", emoji: "🇮🇩" },
+  MYR: { name: "Malaysian Ringgit", country: "Malaysia", countryCode: "MY", emoji: "🇲🇾" },
+  PHP: { name: "Philippine Peso", country: "Philippines", countryCode: "PH", emoji: "🇵🇭" },
+  VND: { name: "Vietnamese Đồng", country: "Vietnam", countryCode: "VN", emoji: "🇻🇳" },
+  TWD: { name: "New Taiwan Dollar", country: "Taiwan", countryCode: "TW", emoji: "🇹🇼" },
+  LAK: { name: "Lao Kip", country: "Laos", countryCode: "LA", emoji: "🇱🇦" },
+  KHR: { name: "Cambodian Riel", country: "Cambodia", countryCode: "KH", emoji: "🇰🇭" },
+  MMK: { name: "Myanmar Kyat", country: "Myanmar", countryCode: "MM", emoji: "🇲🇲" },
+  LKR: { name: "Sri Lankan Rupee", country: "Sri Lanka", countryCode: "LK", emoji: "🇱🇰" },
+  NPR: { name: "Nepalese Rupee", country: "Nepal", countryCode: "NP", emoji: "🇳🇵" },
+  BDT: { name: "Bangladeshi Taka", country: "Bangladesh", countryCode: "BD", emoji: "🇧🇩" },
+  PKR: { name: "Pakistani Rupee", country: "Pakistan", countryCode: "PK", emoji: "🇵🇰" },
+  BTN: { name: "Bhutanese Ngultrum", country: "Bhutan", countryCode: "BT", emoji: "🇧🇹" },
+  MVR: { name: "Maldivian Rufiyaa", country: "Maldives", countryCode: "MV", emoji: "🇲🇻" },
 
-  DJF: { name: "Djiboutian Franc", country: "Djibouti" },
-  DKK: { name: "Danish Krone", country: "Denmark / Greenland / Faroe Islands" },
-  DOP: { name: "Dominican Peso", country: "Dominican Republic" },
-  DZD: { name: "Algerian Dinar", country: "Algeria" },
+  // ===== Europe =====
+  ALL: { name: "Albanian Lek", country: "Albania", countryCode: "AL", emoji: "🇦🇱" }, // เพิ่ม
+  SEK: { name: "Swedish Krona", country: "Sweden", countryCode: "SE", emoji: "🇸🇪" },
+  NOK: { name: "Norwegian Krone", country: "Norway", countryCode: "NO", emoji: "🇳🇴" },
+  DKK: { name: "Danish Krone", country: "Denmark", countryCode: "DK", emoji: "🇩🇰" },
+  PLN: { name: "Polish Złoty", country: "Poland", countryCode: "PL", emoji: "🇵🇱" },
+  CZK: { name: "Czech Koruna", country: "Czech Republic", countryCode: "CZ", emoji: "🇨🇿" },
+  HUF: { name: "Hungarian Forint", country: "Hungary", countryCode: "HU", emoji: "🇭🇺" },
+  RON: { name: "Romanian Leu", country: "Romania", countryCode: "RO", emoji: "🇷🇴" },
+  BGN: { name: "Bulgarian Lev", country: "Bulgaria", countryCode: "BG", emoji: "🇧🇬" },
+  HRK: { name: "Croatian Kuna", country: "Croatia", countryCode: "HR", emoji: "🇭🇷" },
+  RSD: { name: "Serbian Dinar", country: "Serbia", countryCode: "RS", emoji: "🇷🇸" },
+  RUB: { name: "Russian Ruble", country: "Russia", countryCode: "RU", emoji: "🇷🇺" },
+  UAH: { name: "Ukrainian Hryvnia", country: "Ukraine", countryCode: "UA", emoji: "🇺🇦" },
+  ISK: { name: "Icelandic Króna", country: "Iceland", countryCode: "IS", emoji: "🇮🇸" },
+  GEL: { name: "Georgian Lari", country: "Georgia", countryCode: "GE", emoji: "🇬🇪" },
+  BAM: { name: "Bosnia-Herzegovina Mark", country: "Bosnia", countryCode: "BA", emoji: "🇧🇦" },
+  BYN: { name: "Belarusian Ruble", country: "Belarus", countryCode: "BY", emoji: "🇧🇾" },
+  MDL: { name: "Moldovan Leu", country: "Moldova", countryCode: "MD", emoji: "🇲🇩" },
+  MKD: { name: "Macedonian Denar", country: "North Macedonia", countryCode: "MK", emoji: "🇲🇰" },
 
-  EGP: { name: "Egyptian Pound", country: "Egypt" },
-  ERN: { name: "Eritrean Nakfa", country: "Eritrea" },
-  ETB: { name: "Ethiopian Birr", country: "Ethiopia" },
-  EUR: { name: "Euro", country: "Eurozone" },
+  // ===== Americas & Caribbean =====
+  ANG: { name: "Neth. Antillean Guilder", country: "Curaçao", countryCode: "CW", emoji: "🇨🇼" }, // เพิ่ม
+  AWG: { name: "Aruban Florin", country: "Aruba", countryCode: "AW", emoji: "🇦🇼" }, // เพิ่ม
+  MXN: { name: "Mexican Peso", country: "Mexico", countryCode: "MX", emoji: "🇲🇽" },
+  BRL: { name: "Brazilian Real", country: "Brazil", countryCode: "BR", emoji: "🇧🇷" },
+  ARS: { name: "Argentine Peso", country: "Argentina", countryCode: "AR", emoji: "🇦🇷" },
+  CLP: { name: "Chilean Peso", country: "Chile", countryCode: "CL", emoji: "🇨🇱" },
+  COP: { name: "Colombian Peso", country: "Colombia", countryCode: "CO", emoji: "🇨🇴" },
+  PEN: { name: "Peruvian Sol", country: "Peru", countryCode: "PE", emoji: "🇵🇪" },
+  UYU: { name: "Uruguayan Peso", country: "Uruguay", countryCode: "UY", emoji: "🇺🇾" },
+  PYG: { name: "Paraguayan Guaraní", country: "Paraguay", countryCode: "PY", emoji: "🇵🇾" },
+  BOB: { name: "Bolivian Boliviano", country: "Bolivia", countryCode: "BO", emoji: "🇧🇴" },
+  VES: { name: "Venezuelan Bolívar", country: "Venezuela", countryCode: "VE", emoji: "🇻🇪" },
+  GTQ: { name: "Guatemalan Quetzal", country: "Guatemala", countryCode: "GT", emoji: "🇬🇹" },
+  CRC: { name: "Costa Rican Colón", country: "Costa Rica", countryCode: "CR", emoji: "🇨🇷" },
+  DOP: { name: "Dominican Peso", country: "Dominican Republic", countryCode: "DO", emoji: "🇩🇴" },
 
-  FJD: { name: "Fijian Dollar", country: "Fiji" },
-  FKP: { name: "Falkland Islands Pound", country: "Falkland Islands" },
-  FOK: { name: "Faroese Króna", country: "Faroe Islands" },
+  // ===== Africa =====
+  ZAR: { name: "South African Rand", country: "South Africa", countryCode: "ZA", emoji: "🇿🇦" },
+  EGP: { name: "Egyptian Pound", country: "Egypt", countryCode: "EG", emoji: "🇪🇬" },
+  NGN: { name: "Nigerian Naira", country: "Nigeria", countryCode: "NG", emoji: "🇳🇬" },
+  KES: { name: "Kenyan Shilling", country: "Kenya", countryCode: "KE", emoji: "🇰🇪" },
+  GHS: { name: "Ghanaian Cedi", country: "Ghana", countryCode: "GH", emoji: "🇬🇭" },
+  MAD: { name: "Moroccan Dirham", country: "Morocco", countryCode: "MA", emoji: "🇲🇦" },
+  DZD: { name: "Algerian Dinar", country: "Algeria", countryCode: "DZ", emoji: "🇩🇿" },
+  TND: { name: "Tunisian Dinar", country: "Tunisia", countryCode: "TN", emoji: "🇹🇳" },
+  ETB: { name: "Ethiopian Birr", country: "Ethiopia", countryCode: "ET", emoji: "🇪🇹" },
+  AOA: { name: "Angolan Kwanza", country: "Angola", countryCode: "AO", emoji: "🇦🇴" }, // เพิ่ม
+  TZS: { name: "Tanzanian Shilling", country: "Tanzania", countryCode: "TZ", emoji: "🇹🇿" },
+  UGX: { name: "Ugandan Shilling", country: "Uganda", countryCode: "UG", emoji: "🇺🇬" },
 
-  GBP: { name: "British Pound Sterling", country: "United Kingdom" },
-  GEL: { name: "Georgian Lari", country: "Georgia" },
-  GGP: { name: "Guernsey Pound", country: "Guernsey" },
-  GHS: { name: "Ghanaian Cedi", country: "Ghana" },
-  GIP: { name: "Gibraltar Pound", country: "Gibraltar" },
-  GMD: { name: "Gambian Dalasi", country: "Gambia" },
-  GNF: { name: "Guinean Franc", country: "Guinea" },
-  GTQ: { name: "Guatemalan Quetzal", country: "Guatemala" },
-  GYD: { name: "Guyanese Dollar", country: "Guyana" },
-
-  HKD: { name: "Hong Kong Dollar", country: "Hong Kong" },
-  HNL: { name: "Honduran Lempira", country: "Honduras" },
-  HRK: { name: "Croatian Kuna (Legacy)", country: "Croatia" },
-  HTG: { name: "Haitian Gourde", country: "Haiti" },
-  HUF: { name: "Hungarian Forint", country: "Hungary" },
-
-  IDR: { name: "Indonesian Rupiah", country: "Indonesia" },
-  ILS: { name: "Israeli New Shekel", country: "Israel" },
-  IMP: { name: "Isle of Man Pound", country: "Isle of Man" },
-  INR: { name: "Indian Rupee", country: "India" },
-  IQD: { name: "Iraqi Dinar", country: "Iraq" },
-  IRR: { name: "Iranian Rial", country: "Iran" },
-  ISK: { name: "Icelandic Króna", country: "Iceland" },
-
-  JEP: { name: "Jersey Pound", country: "Jersey" },
-  JMD: { name: "Jamaican Dollar", country: "Jamaica" },
-  JOD: { name: "Jordanian Dinar", country: "Jordan" },
-  JPY: { name: "Japanese Yen", country: "Japan" },
-
-  KES: { name: "Kenyan Shilling", country: "Kenya" },
-  KGS: { name: "Kyrgyzstani Som", country: "Kyrgyzstan" },
-  KHR: { name: "Cambodian Riel", country: "Cambodia" },
-  KID: { name: "Kiribati Dollar", country: "Kiribati" },
-  KMF: { name: "Comorian Franc", country: "Comoros" },
-  KRW: { name: "South Korean Won", country: "South Korea" },
-  KWD: { name: "Kuwaiti Dinar", country: "Kuwait" },
-  KYD: { name: "Cayman Islands Dollar", country: "Cayman Islands" },
-  KZT: { name: "Kazakhstani Tenge", country: "Kazakhstan" },
-
-  LAK: { name: "Lao Kip", country: "Laos" },
-  LBP: { name: "Lebanese Pound", country: "Lebanon" },
-  LKR: { name: "Sri Lankan Rupee", country: "Sri Lanka" },
-  LRD: { name: "Liberian Dollar", country: "Liberia" },
-  LSL: { name: "Lesotho Loti", country: "Lesotho" },
-  LYD: { name: "Libyan Dinar", country: "Libya" },
-
-  MAD: { name: "Moroccan Dirham", country: "Morocco" },
-  MDL: { name: "Moldovan Leu", country: "Moldova" },
-  MGA: { name: "Malagasy Ariary", country: "Madagascar" },
-  MKD: { name: "Macedonian Denar", country: "North Macedonia" },
-  MMK: { name: "Myanmar Kyat", country: "Myanmar" },
-  MNT: { name: "Mongolian Tögrög", country: "Mongolia" },
-  MOP: { name: "Macanese Pataca", country: "Macau" },
-  MRU: { name: "Mauritanian Ouguiya", country: "Mauritania" },
-  MUR: { name: "Mauritian Rupee", country: "Mauritius" },
-  MVR: { name: "Maldivian Rufiyaa", country: "Maldives" },
-  MWK: { name: "Malawian Kwacha", country: "Malawi" },
-  MXN: { name: "Mexican Peso", country: "Mexico" },
-  MYR: { name: "Malaysian Ringgit", country: "Malaysia" },
-  MZN: { name: "Mozambican Metical", country: "Mozambique" },
-
-  NAD: { name: "Namibian Dollar", country: "Namibia" },
-  NGN: { name: "Nigerian Naira", country: "Nigeria" },
-  NIO: { name: "Nicaraguan Córdoba", country: "Nicaragua" },
-  NOK: { name: "Norwegian Krone", country: "Norway" },
-  NPR: { name: "Nepalese Rupee", country: "Nepal" },
-  NZD: { name: "New Zealand Dollar", country: "New Zealand" },
-
-  OMR: { name: "Omani Rial", country: "Oman" },
-
-  PAB: { name: "Panamanian Balboa", country: "Panama" },
-  PEN: { name: "Peruvian Sol", country: "Peru" },
-  PGK: { name: "Papua New Guinean Kina", country: "Papua New Guinea" },
-  PHP: { name: "Philippine Peso", country: "Philippines" },
-  PKR: { name: "Pakistani Rupee", country: "Pakistan" },
-  PLN: { name: "Polish Złoty", country: "Poland" },
-  PYG: { name: "Paraguayan Guaraní", country: "Paraguay" },
-
-  QAR: { name: "Qatari Riyal", country: "Qatar" },
-
-  RON: { name: "Romanian Leu", country: "Romania" },
-  RSD: { name: "Serbian Dinar", country: "Serbia" },
-  RUB: { name: "Russian Ruble", country: "Russia" },
-  RWF: { name: "Rwandan Franc", country: "Rwanda" },
-
-  SAR: { name: "Saudi Riyal", country: "Saudi Arabia" },
-  SBD: { name: "Solomon Islands Dollar", country: "Solomon Islands" },
-  SCR: { name: "Seychellois Rupee", country: "Seychelles" },
-  SDG: { name: "Sudanese Pound", country: "Sudan" },
-  SEK: { name: "Swedish Krona", country: "Sweden" },
-  SGD: { name: "Singapore Dollar", country: "Singapore" },
-  SHP: { name: "Saint Helena Pound", country: "Saint Helena" },
-  SLE: { name: "Sierra Leonean Leone (New)", country: "Sierra Leone" },
-  SLL: { name: "Sierra Leonean Leone (Old)", country: "Sierra Leone" },
-  SOS: { name: "Somali Shilling", country: "Somalia" },
-  SRD: { name: "Surinamese Dollar", country: "Suriname" },
-  SSP: { name: "South Sudanese Pound", country: "South Sudan" },
-  STN: { name: "São Tomé and Príncipe Dobra", country: "São Tomé and Príncipe" },
-  SYP: { name: "Syrian Pound", country: "Syria" },
-  SZL: { name: "Eswatini Lilangeni", country: "Eswatini" },
-
-  THB: { name: "Thai Baht", country: "Thailand" },
-  TJS: { name: "Tajikistani Somoni", country: "Tajikistan" },
-  TMT: { name: "Turkmenistani Manat", country: "Turkmenistan" },
-  TND: { name: "Tunisian Dinar", country: "Tunisia" },
-  TOP: { name: "Tongan Paʻanga", country: "Tonga" },
-  TRY: { name: "Turkish Lira", country: "Turkey" },
-  TTD: { name: "Trinidad and Tobago Dollar", country: "Trinidad and Tobago" },
-  TVD: { name: "Tuvaluan Dollar", country: "Tuvalu" },
-
-  TWD: { name: "New Taiwan Dollar", country: "Taiwan" },
-  TZS: { name: "Tanzanian Shilling", country: "Tanzania" },
-
-  UAH: { name: "Ukrainian Hryvnia", country: "Ukraine" },
-  UGX: { name: "Ugandan Shilling", country: "Uganda" },
-  UYU: { name: "Uruguayan Peso", country: "Uruguay" },
-  UZS: { name: "Uzbekistani Soʻm", country: "Uzbekistan" },
-
-  VES: { name: "Venezuelan Bolívar", country: "Venezuela" },
-  VND: { name: "Vietnamese Đồng", country: "Vietnam" },
-  VUV: { name: "Vanuatu Vatu", country: "Vanuatu" },
-
-  WST: { name: "Samoan Tālā", country: "Samoa" },
-
-  XAF: { name: "Central African CFA Franc", country: "CEMAC Countries" },
-  XCD: { name: "East Caribbean Dollar", country: "OECS Countries" },
-  XDR: { name: "Special Drawing Rights", country: "IMF" },
-  XOF: { name: "West African CFA Franc", country: "UEMOA Countries" },
-  XPF: { name: "CFP Franc", country: "French Pacific Territories" },
-
-  YER: { name: "Yemeni Rial", country: "Yemen" },
-
-  ZAR: { name: "South African Rand", country: "South Africa" },
-  ZMW: { name: "Zambian Kwacha", country: "Zambia" },
-  ZWL: { name: "Zimbabwean Dollar", country: "Zimbabwe" },
+  // ===== Multi-country / Special =====
+  XAF: { name: "Central African CFA Franc", country: "CEMAC", emoji: "🌍" },
+  XOF: { name: "West African CFA Franc", country: "UEMOA", emoji: "🌍" },
+  XCD: { name: "East Caribbean Dollar", country: "OECS", emoji: "🏝️" },
+  XPF: { name: "CFP Franc", country: "Pacific Territories", emoji: "🏝️" },
+  XDR: { name: "Special Drawing Rights", country: "IMF", emoji: "🏦" },
 }
 
 /**
@@ -212,4 +146,16 @@ export const getCurrencyLabel = (code: string): string => {
   const meta = currencyMeta[c]
   if (!meta) return c
   return meta.country ? `${meta.name} (${meta.country})` : meta.name
+}
+
+/**
+ * ใช้ดึง emoji ธงแบบปลอดภัย
+ */
+export const getCurrencyEmoji = (code: string): string => {
+  const c = code?.toUpperCase?.() || code
+  const meta = currencyMeta[c]
+  if (!meta) return "🌐"
+  if (meta.emoji) return meta.emoji
+  const auto = countryCodeToFlag(meta.countryCode)
+  return auto || "🌐"
 }

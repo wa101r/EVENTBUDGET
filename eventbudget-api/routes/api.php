@@ -6,12 +6,12 @@ use App\Http\Controllers\Api\EventController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\CurrencyController;
 
-
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 Route::apiResource('currencies', \App\Http\Controllers\Api\CurrencyController::class);
 
+Route::apiResource('categories', CategoryController::class);
 // EVENTS
 Route::get('/events', [EventController::class, 'index']);
 Route::post('/events', [EventController::class, 'store']);
