@@ -1,202 +1,131 @@
-<script setup>
-import ExpenseTable from "~/components/expenses/ExpenseTable.vue"
-import UiModal from "~/components/ui/UiModal.vue"
-import UiInput from "~/components/ui/UiInput.vue"
-import UiButton from "~/components/ui/UiButton.vue"
-import EventFabButton from "~/components/event/EventFabButton.vue"
-import EventTabBar from "~/components/layout/EventTabBar.vue"
-import { useExpensesApi } from "~/composables/useExpensesApi"
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useRoute } from 'vue-router'
+import { useExpensesApi } from '~/composables/useExpensesApi' 
+
+import ExpenseListItem from '~/components/event/expenses/ExpenseListItem.vue'
+import ExpenseFormModal from '~/components/event/expenses/ExpenseFormModal.vue'
+import EventFabButton from '~/components/event/EventFabButton.vue'
 
 definePageMeta({
-  layout: "header",
-  title: "Expenses",
+  layout: 'detail',
+  title: 'Expenses'
 })
 
 const route = useRoute()
-const eventId = computed(() => Number(route.params.id))
+const eventId = route.params.id
 
-const {
-  getExpensesByEventId,
-  addExpense,
-  updateExpense,
-  removeExpense,
+// ✅ ดึง categories และ getCategories มาใช้
+const { 
+  getExpenses, 
+  createExpense, 
+  updateExpense, 
+  deleteExpense,
   categories,
+  getCategories 
 } = useExpensesApi()
 
-// ✅ ให้ reactive ตาม eventId
-const expensesRef = computed(() => getExpensesByEventId(eventId.value))
+// ✅ สั่งโหลดหมวดหมู่ทันที
+await getCategories()
 
-// ----- UI state -----
-const search = ref("")
+const { data: expenses, pending, refresh, error } = await getExpenses(eventId)
+
+const searchQuery = ref('')
 const isModalOpen = ref(false)
-const isEditing = ref(false)
+const editingItem = ref(null)
+const isSubmitting = ref(false)
 
-const form = ref({
-  id: null,
-  name: "",
-  amount: null,
-  date: "",
-  time: "",
-  category: "",
+const totalAmount = computed(() => {
+  const list = expenses.value || [] 
+  return list.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
 })
 
-const resetForm = () => {
-  form.value = {
-    id: null,
-    name: "",
-    amount: null,
-    date: "",
-    time: "",
-    category: "",
-  }
-}
-
-const openAdd = () => {
-  resetForm()
-  isEditing.value = false
-  isModalOpen.value = true
-}
-
-const openEdit = (exp) => {
-  form.value = {
-    id: exp.id,
-    name: exp.name,
-    amount: exp.amount,
-    date: exp.date,
-    time: exp.time,
-    category: exp.category,
-  }
-  isEditing.value = true
-  isModalOpen.value = true
-}
-
-const handleSave = async () => {
-  const payload = { ...form.value, eventId: eventId.value }
-  if (isEditing.value) {
-    await updateExpense(payload)
-  } else {
-    await addExpense(payload)
-  }
-  isModalOpen.value = false
-}
-
-const handleDelete = async (id) => {
-  if (confirm("ลบค่าใช้จ่ายนี้?")) {
-    await removeExpense(id)
-  }
-}
-
-// ----- computed -----
-const expenses = computed(() => expensesRef.value?.value ?? [])
-
 const filteredExpenses = computed(() => {
-  const q = search.value.trim().toLowerCase()
-  if (!q) return expenses.value
-  return expenses.value.filter(e =>
-    (e.name || "").toLowerCase().includes(q) ||
-    (e.category || "").toLowerCase().includes(q)
+  const list = expenses.value || []
+  const q = searchQuery.value.toLowerCase()
+  return list.filter(e => 
+    e.name.toLowerCase().includes(q) || 
+    (e.category && e.category.toLowerCase().includes(q))
   )
 })
 
-const totalAmount = computed(() =>
-  expenses.value.reduce((s, e) => s + Number(e.amount || 0), 0)
-)
+const openAddModal = () => {
+  editingItem.value = null
+  isModalOpen.value = true
+}
+
+const handleEdit = (item: any) => {
+  editingItem.value = { ...item }
+  isModalOpen.value = true
+}
+
+const handleDelete = async (id: number) => {
+  if (!confirm('ยืนยันที่จะลบรายการนี้?')) return
+  try {
+    await deleteExpense(id)
+    refresh()
+  } catch (err: any) {
+    alert('เกิดข้อผิดพลาด: ' + err)
+  }
+}
+
+const handleSave = async (formData: any) => {
+  isSubmitting.value = true
+  try {
+    const payload = { ...formData, event_id: eventId }
+    if (editingItem.value) {
+      await updateExpense(editingItem.value.id, payload)
+    } else {
+      await createExpense(payload)
+    }
+    await refresh() 
+    isModalOpen.value = false
+  } catch (err: any) {
+    alert('บันทึกไม่สำเร็จ: ' + err)
+  } finally {
+    isSubmitting.value = false
+  }
+}
 </script>
 
 <template>
-  <!-- ✅ ใส่พื้นหลัง Dinsor เบา ๆ -->
-  <div class="min-h-screen bg-[#F8F6F3] pb-24">
-    <div class="px-4 sm:px-6 py-5 space-y-4">
-      <!-- HEADER BAR -->
-      <div class="flex items-center justify-between">
-        <div>
-          <h1 class="text-2xl font-bold text-[#1f2937]">Expenses</h1>
-          <p class="text-sm text-gray-500">รายการค่าใช้จ่ายของอีเว้นนี้</p>
-        </div>
-
-        <!-- desktop add -->
-        <UiButton class="hidden sm:inline-flex" @click="openAdd">
-          + Add
-        </UiButton>
-      </div>
-
-      <!-- SEARCH + TOTAL -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <UiInput
-          v-model="search"
-          placeholder="Search expenses..."
-          class="md:col-span-2"
-        />
-
-        <div class="bg-white rounded-2xl border border-[#eee7df] px-4 py-3 flex items-center justify-between shadow-sm">
-          <div class="text-sm text-gray-500">Total</div>
-          <div class="text-lg font-bold text-green-600">
-            {{ totalAmount.toLocaleString() }}
-          </div>
-        </div>
-      </div>
-
-      <!-- EMPTY -->
-      <div
-        v-if="!filteredExpenses.length"
-        class="bg-white/70 border border-dashed border-[#e9e2da] rounded-3xl p-10 text-center"
-      >
-        <div class="text-5xl mb-2">🧾</div>
-        <div class="font-semibold text-gray-700">No expenses yet</div>
-        <UiButton class="mt-4" @click="openAdd">
-          + Add expense
-        </UiButton>
-      </div>
-
-      <!-- LIST / TABLE -->
-      <div v-else>
-        <ExpenseTable
-          :items="filteredExpenses"
-          @edit="openEdit"
-          @delete="handleDelete"
-        />
-      </div>
-
-      <!-- floating add (mobile) -->
-      <EventFabButton class="sm:hidden fixed right-5 bottom-24" @click="openAdd" />
-      <!-- ↑ bottom-24 กันชน tabbar -->
+  <div class="p-4 max-w-3xl mx-auto space-y-6 pb-24">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-800">Expenses</h1>
+      <p class="text-slate-500 text-sm">รายการค่าใช้จ่าย</p>
     </div>
 
-    <!-- MODAL -->
-    <UiModal v-if="isModalOpen" @close="isModalOpen = false">
-      <template #title>
-        {{ isEditing ? "Edit Expense" : "Add Expense" }}
-      </template>
-
-      <div class="space-y-3">
-        <UiInput v-model="form.name" label="Name" />
-        <UiInput v-model="form.amount" label="Amount" type="number" />
-
-        <div>
-          <label class="text-sm text-gray-600 block mb-1">Category</label>
-          <select v-model="form.category" class="w-full p-3 rounded-xl bg-gray-100">
-            <option value="">Select category</option>
-            <option v-for="c in categories.value" :key="c.id" :value="c.name">
-              {{ c.name }}
-            </option>
-          </select>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <UiInput v-model="form.date" label="Date" type="date" />
-          <UiInput v-model="form.time" label="Time" type="time" />
-        </div>
+    <div class="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm space-y-4">
+      <input v-model="searchQuery" type="text" placeholder="ค้นหารายการ..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400 transition" />
+      <div class="flex justify-between items-center px-2 pt-2 border-t border-slate-100">
+        <span class="text-slate-500 font-medium">ยอดรวม</span>
+        <span class="text-2xl font-bold text-orange-600">
+          {{ totalAmount.toLocaleString() }} <span class="text-sm text-slate-400 font-normal">THB</span>
+        </span>
       </div>
+    </div>
 
-      <template #footer>
-        <div class="flex justify-end gap-2">
-          <UiButton variant="secondary" @click="isModalOpen = false">Cancel</UiButton>
-          <UiButton variant="primary" @click="handleSave">Save</UiButton>
-        </div>
-      </template>
-    </UiModal>
+    <div v-if="filteredExpenses.length === 0" class="text-center py-12 border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50">
+      <p class="text-slate-500 font-medium">ยังไม่มีรายการค่าใช้จ่าย</p>
+    </div>
+    <div v-else class="space-y-3">
+      <ExpenseListItem 
+        v-for="expense in filteredExpenses" 
+        :key="expense.id" 
+        :expense="expense"
+        @edit="handleEdit"
+        @delete="handleDelete"
+      />
+    </div>
 
-    <!-- ✅ TAB BAR ล่าง -->
-    <EventTabBar :event-id="eventId" />
+    <EventFabButton @click="openAddModal" />
+
+    <ExpenseFormModal 
+      v-if="isModalOpen"
+      :initial-data="editingItem"
+      :categories="categories"
+      @close="isModalOpen = false"
+      @save="handleSave"
+    />
   </div>
 </template>

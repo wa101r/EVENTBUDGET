@@ -1,72 +1,120 @@
-<script setup>
-import UiButton from '~/components/ui/UiButton.vue'
-import UiInput from '~/components/ui/UiInput.vue'
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useRoute } from 'vue-router'
+import { useTasksApi } from '~/composables/useTasksApi' // ✅ เรียกใช้ API
 
-import { useEventDetailsApi } from '~/composables/useEventDetailsApi'
-import { useAppLocale } from '~/composables/useAppLocale'
-import EventTabBar from '~/components/layout/EventTabBar.vue'
+import TaskItem from '~/components/tasks/TaskItem.vue' 
+import TaskFormModal from '~/components/tasks/TaskFormModal.vue'
+import EventFabButton from '~/components/event/EventFabButton.vue'
 
-definePageMeta({
-  layout: "header",
-  title: 'Expenses'
-})
+definePageMeta({ layout: 'detail', title: 'Tasks' })
 
-const { t } = useAppLocale()
 const route = useRoute()
 const eventId = route.params.id
-const { getTasksByEvent, createTask, toggleTask, deleteTask } = useEventDetailsApi()
+const { getTasks, createTask, updateTask, deleteTask } = useTasksApi()
 
-const tasks = getTasksByEvent(eventId)
+// ✅ 1. ดึงข้อมูลจริงจาก DB
+const { data: tasks, refresh } = await getTasks(eventId)
+
 const isModalOpen = ref(false)
-const form = ref({ title: '', description: '', due_date: '' })
 
-const openCreate = () => { form.value = { title: '', description: '', due_date: '' }; isModalOpen.value = true }
-const handleSave = () => { createTask({ ...form.value, event_id: eventId }); isModalOpen.value = false }
-const handleDelete = (id) => { if(confirm(t.value.confirm_delete_task)) deleteTask(id) }
+// Logic แยกงานที่เสร็จ/ไม่เสร็จ
+const pendingTasks = computed(() => (tasks.value || []).filter(t => !t.is_completed)) // เช็คชื่อ column ใน DB ดีๆ นะครับ (is_completed หรือ completed)
+const completedTasks = computed(() => (tasks.value || []).filter(t => t.is_completed))
+
+const openAddModal = () => { isModalOpen.value = true }
+
+// ✅ 2. บันทึกลง DB จริง
+const handleSaveTask = async (formData) => {
+  try {
+    await createTask({
+      event_id: eventId,
+      title: formData.title,
+      due_date: formData.due_date,
+      due_time: formData.due_time, // ส่งเวลาไปด้วย
+      is_completed: false
+    })
+    refresh() // โหลดข้อมูลใหม่
+    isModalOpen.value = false
+  } catch (err) {
+    alert('บันทึกไม่สำเร็จ: ' + err)
+  }
+}
+
+// ✅ 3. อัปเดตสถานะลง DB
+const toggleTask = async (task) => {
+  try {
+    // สลับค่า true/false
+    const newStatus = !task.is_completed
+    // อัปเดต UI ทันที (Optimistic UI)
+    task.is_completed = newStatus 
+    
+    // ยิง API อัปเดต
+    await updateTask(task.id, { is_completed: newStatus })
+    refresh()
+  } catch (err) {
+    alert('อัปเดตไม่สำเร็จ')
+  }
+}
+
+// ✅ 4. ลบงานจาก DB
+const handleDeleteTask = async (id) => {
+  if(!confirm('ลบงานนี้?')) return
+  try {
+    await deleteTask(id)
+    refresh()
+  } catch (err) {
+    alert('ลบไม่สำเร็จ')
+  }
+}
 </script>
 
 <template>
-  <NuxtLayout name="event">
-    <div class="max-w-3xl mx-auto py-2">
-      <h2 class="text-2xl font-bold text-text-primary mb-6">{{ t.tasks_title }}</h2>
+  <div class="p-4 max-w-3xl mx-auto space-y-6 pb-24">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-800">Tasks</h1>
+      <p class="text-slate-500 text-sm">รายการสิ่งที่ต้องทำ</p>
+    </div>
 
-      <div v-if="tasks.length === 0" class="text-center text-gray-400 py-20 bg-white rounded-xl border border-dashed">
-        <p>{{ t.no_tasks }}</p>
-        <UiButton variant="primary" @click="openCreate" class="mt-3">{{ t.create_new_task }}</UiButton>
+    <div 
+      v-if="!tasks || tasks.length === 0" 
+      class="flex flex-col items-center justify-center py-20 bg-white/50 rounded-3xl border-2 border-dashed border-slate-200 text-center"
+    >
+      <div class="text-4xl mb-3">📝</div>
+      <p class="text-slate-500 font-medium">ไม่มีงานค้าง สบายจัง!</p>
+      <p class="text-xs text-slate-400 mt-1">กดปุ่ม + ด้านล่างเพื่อเพิ่มงาน</p>
+    </div>
+
+    <div v-else class="space-y-6">
+      <div v-if="pendingTasks.length > 0" class="space-y-3">
+        <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider pl-1">To Do ({{ pendingTasks.length }})</h2>
+        <TaskItem 
+          v-for="task in pendingTasks" 
+          :key="task.id" 
+          :task="task" 
+          @toggle="toggleTask"
+          @delete="handleDeleteTask"
+        />
       </div>
 
-      <div v-else class="space-y-3">
-        <div v-for="task in tasks" :key="task.id" class="bg-white p-4 rounded-xl border border-base-border shadow-sm hover:shadow-md transition-all flex items-start gap-4 group" :class="{'opacity-60 bg-gray-50': task.is_completed}">
-          <div class="pt-1">
-            <input type="checkbox" :checked="task.is_completed" @change="toggleTask(task.id)" class="w-6 h-6 rounded-md border-2 border-gray-300 text-accent focus:ring-accent cursor-pointer" />
-          </div>
-          <div class="flex-1">
-            <h4 class="text-lg font-bold text-gray-800 transition-all" :class="{'line-through text-gray-400': task.is_completed}">{{ task.title }}</h4>
-            <p class="text-sm text-gray-500">{{ task.description }}</p>
-            <div v-if="task.due_date" class="mt-2 inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium" :class="task.is_completed ? 'bg-gray-200 text-gray-500' : 'bg-orange-50 text-accent'">
-              📅 {{ t.due_date_prefix }} {{ task.due_date }}
-            </div>
-          </div>
-          <button @click="handleDelete(task.id)" class="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-          </button>
-        </div>
+      <div v-if="completedTasks.length > 0" class="space-y-3 opacity-75">
+        <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider pl-1">Completed ({{ completedTasks.length }})</h2>
+        <TaskItem 
+          v-for="task in completedTasks" 
+          :key="task.id" 
+          :task="task" 
+          @toggle="toggleTask"
+          @delete="handleDeleteTask"
+        />
       </div>
     </div>
 
-    
-    <div v-if="isModalOpen" class="fixed inset-0 flex items-start justify-center p-4 pt-20 z-[100] bg-black/60 backdrop-blur-sm">
-      <div class="w-full max-w-md bg-white rounded-xl p-6 space-y-4 shadow-xl">
-        <h3 class="text-xl font-bold">{{ t.add_task }}</h3>
-        <UiInput v-model="form.title" :label="t.label_task_title" />
-        <UiInput v-model="form.description" :label="t.label_task_desc" />
-        <UiInput v-model="form.due_date" :label="t.label_due_date" type="date" />
-        <div class="flex justify-end gap-3 pt-4">
-          <UiButton variant="secondary" @click="isModalOpen = false">{{ t.cancel }}</UiButton>
-          <UiButton variant="primary" @click="handleSave">{{ t.save }}</UiButton>
-        </div>
-      </div>
-    </div>
-  </NuxtLayout>
-  <EventTabBar :event-id="eventId" />
+    <EventFabButton @click="openAddModal" />
+
+    <TaskFormModal 
+      :is-open="isModalOpen"
+      @close="isModalOpen = false"
+      @save="handleSaveTask"
+    />
+  </div>
 </template>

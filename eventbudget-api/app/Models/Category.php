@@ -9,5 +9,8 @@ class Category extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'icon'];
+    protected $fillable = [
+        'name',
+        'icon', // เก็บไอคอน เช่น 🍔, 🏠
+    ];
 }

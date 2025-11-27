@@ -3,32 +3,52 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\Category;
+use Illuminate\Http\Request;
 
 class CategoryController extends Controller
 {
+    // ดึงหมวดหมู่ทั้งหมด
     public function index()
     {
-        return Category::orderBy('id', 'desc')->get();
+        return Category::orderBy('name')->get();
     }
 
+    // เพิ่มหมวดหมู่
     public function store(Request $request)
     {
-        $cat = Category::create($request->only('name', 'icon'));
-        return $cat;
+        $data = $request->validate([
+            'name' => 'required|string|max:255',
+            'icon' => 'nullable|string|max:255', // เก็บ Emoji หรือ Class icon
+        ]);
+
+        $cat = Category::create($data);
+
+        return response()->json($cat, 201);
     }
 
+    // แก้ไขหมวดหมู่
     public function update(Request $request, $id)
     {
         $cat = Category::findOrFail($id);
-        $cat->update($request->only('name', 'icon'));
-        return $cat;
+
+        $data = $request->validate([
+            'name' => 'sometimes|required|string|max:255',
+            'icon' => 'nullable|string|max:255',
+        ]);
+
+        $cat->fill($data);
+        $cat->save();
+
+        return response()->json($cat);
     }
 
+    // ลบหมวดหมู่
     public function destroy($id)
     {
-        Category::findOrFail($id)->delete();
-        return response()->json(['success' => true]);
+        $cat = Category::findOrFail($id);
+        $cat->delete();
+
+        return response()->json(null, 204);
     }
 }

@@ -1,60 +1,65 @@
-import { ref, computed } from 'vue'
-
-const days = ref([])
+import { ref } from 'vue'
 
 export const useTimelineApi = () => {
-  
-  const getTimelineByEventId = (eventId) => {
-    // โหลดข้อมูลจาก Server
-    $fetch(`/api/timeline?eventId=${eventId}`).then(data => {
-      days.value = data
-    })
-    return computed(() => days.value)
-  }
+  const config = useRuntimeConfig()
+  const API_URL = config.public.apiBase || 'http://localhost:8000/api'
 
-  const addDay = async (dayData) => {
-    const newDay = await $fetch('/api/days', { method: 'POST', body: dayData })
-    // ต้องเติม items array เปล่าๆ ให้ UI ไม่พัง
-    days.value.push({ ...newDay, items: [] })
-  }
-
-  const deleteDay = async (dayId) => {
-    await $fetch(`/api/days?id=${dayId}`, { method: 'DELETE' })
-    days.value = days.value.filter(d => d.id !== dayId)
-  }
-
-  const addItem = async (dayId, itemData) => {
-    const newItem = await $fetch('/api/items', { 
-      method: 'POST', 
-      body: { ...itemData, day_id: dayId } 
+  // 1. ดึงข้อมูล Timeline (แก้ตรงนี้ให้ส่งค่า refresh กลับไป)
+  const getTimelineByEventId = async (eventId) => {
+    const { data, refresh, pending, error } = await useFetch(`${API_URL}/timeline`, {
+      query: { eventId },
+      key: `timeline-${eventId}`,
+      watch: [ref(eventId)]
     })
     
-    // อัปเดต UI ทันที
-    const day = days.value.find(d => d.id === dayId)
-    if (day) {
-      if (!day.items) day.items = []
-      day.items.push(newItem)
-      // เรียงเวลา
-      day.items.sort((a, b) => a.start_time.localeCompare(b.start_time))
-    }
+    // ✅ ส่งกลับไปทั้งก้อนเลย (จะได้ใช้ refresh ได้)
+    return { data, refresh, pending, error }
   }
 
+  // 2. เพิ่มวันใหม่
+  const addDay = async (data) => {
+    return await $fetch(`${API_URL}/days`, {
+      method: 'POST',
+      body: data
+    })
+  }
+
+  // 3. ลบวัน
+  const deleteDay = async (id) => {
+    return await $fetch(`${API_URL}/days/${id}`, {
+      method: 'DELETE'
+    })
+  }
+
+  // 4. เพิ่มกิจกรรม (Item)
+  const addItem = async (dayId, data) => {
+    return await $fetch(`${API_URL}/items`, {
+      method: 'POST',
+      body: { ...data, event_day_id: dayId }
+    })
+  }
+
+  // 5. แก้ไขกิจกรรม
+  const updateItem = async (dayId, data) => {
+    return await $fetch(`${API_URL}/items/${data.id}`, {
+      method: 'PUT',
+      body: data
+    })
+  }
+
+  // 6. ลบกิจกรรม
   const deleteItem = async (dayId, itemId) => {
-    await $fetch(`/api/items?id=${itemId}`, { method: 'DELETE' })
-    const day = days.value.find(d => d.id === dayId)
-    if (day) day.items = day.items.filter(i => i.id !== itemId)
-  }
-
-  // Update Item (Mock UI update only for now)
-  const updateItem = (dayId, updatedItem) => {
-    const day = days.value.find(d => d.id === dayId)
-    if (day) {
-      const idx = day.items.findIndex(i => i.id === updatedItem.id)
-      if (idx !== -1) day.items[idx] = updatedItem
-    }
+    return await $fetch(`${API_URL}/items/${itemId}`, {
+      method: 'DELETE'
+    })
   }
 
   return {
-    getTimelineByEventId, addDay, deleteDay, addItem, deleteItem, updateItem
+    getTimelineByEventId,
+    addDay,
+    deleteDay,
+    addItem,
+    updateItem,
+    deleteItem
   }
 }

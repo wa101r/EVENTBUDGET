@@ -1,135 +1,147 @@
-<script setup>
-import EventTabBar from "~/components/layout/EventTabBar.vue"
-import UiCard from '~/components/ui/UiCard.vue'
-import { useAppLocale } from '~/composables/useAppLocale'
-import { useEventsApi } from '~/composables/useEventsApi'
+<script setup lang="ts">
+import { computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useExpensesApi } from '~/composables/useExpensesApi'
+import EventTabBar from '~/components/layout/EventTabBar.vue'
 
+// ใช้ Layout ที่มี Header + Tabbar
 definePageMeta({
-  layout: "header",
-  title: "Expenses",
+  layout: "detail",
+  title: "Budget Overview"
 })
 
 const route = useRoute()
-const { t } = useAppLocale()
+const eventId = route.params.id
+const config = useRuntimeConfig()
+const API_URL = config.public.apiBase || 'http://localhost:8000/api'
 
-// composables
-const { getEventById } = useEventsApi()
-const { getExpensesByEventId, getExpensesByCategory } = useExpensesApi()
+const { getExpenses, getExpensesByCategory } = useExpensesApi()
 
-// event id
-const eventId = computed(() => Number(route.params.id))
+// --- 1. ดึงข้อมูล Event (เพื่อเอางบประมาณ total_budget) ---
+// หมายเหตุ: ต้องมั่นใจว่า Backend มี Route: GET /api/events/{id}
+const { data: eventData, error: eventError } = await useFetch(`${API_URL}/events/${eventId}`)
 
-// data
-const event = getEventById(eventId.value)
-const budget = computed(() => Number(event.value?.total_budget) || 0)
+// --- 2. ดึงข้อมูลรายจ่าย (Expenses) ---
+const { data: expenses, pending: expensesPending } = await getExpenses(eventId)
 
-const eventExpenses = getExpensesByEventId(eventId.value)
-const used = computed(() =>
-  eventExpenses.value.reduce((sum, item) => sum + Number(item.amount), 0)
-)
-
-const remaining = computed(() => budget.value - used.value)
-
-const percent = computed(() => {
-  if (budget.value === 0) return 0
-  return Math.min(100, (used.value / budget.value) * 100)
+// Debug: ดูค่าใน Console (กด F12 ดูได้เลย)
+onMounted(() => {
+  console.log("Event Data:", eventData.value)
+  console.log("Total Budget from DB:", eventData.value?.total_budget)
 })
 
-const categories = computed(() =>
-  getExpensesByCategory(eventId.value) || []
-)
+// --- 3. Computed (คำนวณตัวเลข) ---
 
-const formatMoney = (val) =>
-  Number(val).toLocaleString("th-TH", { maximumFractionDigits: 0 })
+// งบที่ตั้งไว้ (ดึงจาก total_budget หรือ total)
+const totalBudget = computed(() => {
+  if (!eventData.value) return 0
+  // แปลงเป็นตัวเลข (Support ทั้งชื่อ total_budget และ total)
+  return Number(eventData.value.total_budget || eventData.value.total || 0)
+})
+
+// ใช้ไปจริง (รวมยอด expenses)
+const totalSpent = computed(() => {
+  const list = expenses.value || []
+  return list.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
+})
+
+const remaining = computed(() => totalBudget.value - totalSpent.value)
+
+const percentageUsed = computed(() => {
+  if (totalBudget.value === 0) return 0
+  const pct = (totalSpent.value / totalBudget.value) * 100
+  return Math.min(pct, 100)
+})
+
+const isOverBudget = computed(() => totalSpent.value > totalBudget.value)
+
+// แยกหมวดหมู่
+const categoryBreakdown = computed(() => {
+  return getExpensesByCategory(expenses.value || []).sort((a, b) => b.amount - a.amount)
+})
+
+const formatMoney = (n) => Number(n).toLocaleString('en-US', { minimumFractionDigits: 0 })
 </script>
 
 <template>
-  <NuxtLayout name="event">
+  <div class="max-w-3xl mx-auto space-y-6">
     <div>
-      <h2 class="text-2xl font-bold text-text-primary mb-4">
-        {{ t.budget_overview }}
-      </h2>
+      <h1 class="text-2xl font-bold text-slate-800">Budget Overview</h1>
+      <p class="text-slate-500 text-sm">บริหารจัดการงบประมาณ</p>
+    </div>
 
-      <UiCard class="mb-6 p-6">
-        <div class="flex justify-between items-center mb-3">
-          <span class="text-sm text-text-secondary">
-            {{ t.budget_progress }}
-          </span>
-          <span class="text-sm font-medium text-text-primary">
-            {{ t.total_budget }}: ฿{{ formatMoney(budget) }}
-          </span>
+    <div v-if="!eventData && !eventError" class="p-4 bg-yellow-50 text-yellow-600 rounded-xl text-sm">
+      กำลังโหลดข้อมูลงบประมาณ...
+    </div>
+
+    <div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 relative overflow-hidden">
+      <div class="absolute -top-10 -right-10 w-40 h-40 bg-orange-50 rounded-full blur-3xl opacity-60"></div>
+
+      <div class="relative z-10 text-center space-y-2">
+        <p class="text-slate-500 font-medium">งบประมาณคงเหลือ</p>
+        
+        <h2 class="text-4xl font-extrabold tracking-tight transition-colors"
+            :class="isOverBudget ? 'text-red-500' : 'text-green-600'">
+          {{ formatMoney(remaining) }} <span class="text-lg font-normal text-slate-400">THB</span>
+        </h2>
+        
+        <div v-if="isOverBudget" class="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-red-100 text-red-600 text-xs font-bold animate-pulse">
+          ⚠️ เกินงบ {{ formatMoney(totalSpent - totalBudget) }} THB
         </div>
+        <div v-else class="text-xs text-slate-400">
+           จากงบทั้งหมด {{ formatMoney(totalBudget) }} THB
+        </div>
+      </div>
 
-        <div class="w-full bg-gray-200 rounded-full h-3 mb-4 overflow-hidden">
-          <div
-            class="h-3 rounded-full transition-all duration-500 ease-out"
-            :class="percent > 90 ? 'bg-red-500' : 'bg-accent'"
-            :style="{ width: `${percent}%` }"
+      <div class="mt-8">
+        <div class="flex justify-between text-xs font-semibold text-slate-500 mb-2">
+          <span>ใช้ไป {{ formatMoney(totalSpent) }} ({{ ((totalSpent/totalBudget)*100 || 0).toFixed(0) }}%)</span>
+        </div>
+        <div class="h-4 w-full bg-slate-100 rounded-full overflow-hidden">
+          <div 
+            class="h-full rounded-full transition-all duration-1000 ease-out shadow-sm"
+            :class="isOverBudget ? 'bg-red-500' : 'bg-orange-500'"
+            :style="{ width: `${percentageUsed}%` }"
           ></div>
         </div>
-
-        <div class="flex justify-between items-end mt-2">
-          <div>
-            <div class="text-xs text-text-secondary mb-1">
-              {{ t.used }}
-            </div>
-            <div class="text-xl font-bold text-text-primary">
-              ฿{{ formatMoney(used) }}
-            </div>
-          </div>
-
-          <div class="text-right">
-            <div class="text-xs text-text-secondary mb-1">
-              {{ t.remaining }}
-            </div>
-            <div
-              class="text-xl font-bold"
-              :class="remaining < 0 ? 'text-red-500' : 'text-green-600'"
-            >
-              ฿{{ formatMoney(remaining) }}
-            </div>
-          </div>
-        </div>
-
-        <div class="text-right mt-1 text-xs text-text-secondary">
-          {{ percent.toFixed(1) }}% {{ t.of_budget }}
-        </div>
-      </UiCard>
-
-      <UiCard class="p-6">
-        <h3 class="text-xl font-bold text-text-primary mb-5">
-          {{ t.expenses_by_category }}
-        </h3>
-
-        <div
-          v-if="!categories.length"
-          class="text-text-secondary text-center py-4"
-        >
-          {{ t.no_expenses_data }}
-        </div>
-
-        <div v-else class="space-y-5">
-          <div
-            v-for="cat in categories"
-            :key="cat.name"
-            class="flex justify-between items-center"
-          >
-            <div class="flex items-center gap-4">
-              <span class="text-2xl w-8 text-center">{{ cat.icon }}</span>
-              <span class="text-text-primary font-medium">
-                {{ cat.name }}
-              </span>
-            </div>
-            <span class="text-text-primary font-bold">
-              ฿{{ formatMoney(cat.amount) }}
-            </span>
-          </div>
-        </div>
-      </UiCard>
+      </div>
     </div>
-  </NuxtLayout>
 
-  <!-- bottom tab bar -->
-  <EventTabBar :event-id="eventId" />
+    <div>
+      <h3 class="text-lg font-bold text-slate-800 mb-4">รายจ่ายแยกหมวดหมู่</h3>
+      
+      <div v-if="expensesPending" class="space-y-3">
+         <div v-for="i in 3" :key="i" class="h-14 bg-slate-100 rounded-2xl animate-pulse"></div>
+      </div>
+
+      <div v-else-if="categoryBreakdown.length === 0" class="text-center py-8 text-slate-400 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+        ยังไม่มีข้อมูลรายจ่าย
+      </div>
+
+      <div v-else class="space-y-3">
+        <div 
+          v-for="cat in categoryBreakdown" 
+          :key="cat.name"
+          class="bg-white p-4 rounded-2xl border border-slate-100 flex items-center justify-between hover:shadow-sm transition"
+        >
+          <div class="flex items-center gap-3">
+            <div class="h-10 w-10 rounded-full bg-orange-50 flex items-center justify-center text-xl shrink-0">
+              {{ cat.icon }}
+            </div>
+            <div>
+              <div class="font-semibold text-slate-800">{{ cat.name }}</div>
+              <div class="text-xs text-slate-400" v-if="totalSpent > 0">
+                {{ ((cat.amount / totalSpent) * 100).toFixed(1) }}% ของรายจ่ายทั้งหมด
+              </div>
+            </div>
+          </div>
+          
+          <div class="text-right">
+            <div class="font-bold text-slate-800">{{ formatMoney(cat.amount) }}</div>
+            <div class="text-[10px] text-slate-400">THB</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>

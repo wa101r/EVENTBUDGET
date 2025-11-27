@@ -3,8 +3,8 @@ import { ref, onMounted, computed } from 'vue'
 import UiButton from '~/components/ui/UiButton.vue'
 import { useTimelineApi } from '~/composables/useTimelineApi'
 import { useAppLocale } from '~/composables/useAppLocale'
-import EventTabBar from '~/components/layout/EventTabBar.vue'
 
+// Components
 import TimelineEmpty from '~/components/timeline/TimelineEmpty.vue'
 import TimelineDay from '~/components/timeline/TimelineDay.vue'
 import DayModal from '~/components/timeline/DayModal.vue'
@@ -12,9 +12,10 @@ import ItemModal from '~/components/timeline/ItemModal.vue'
 
 import { timelineIcons } from '~/shared/timelineIcons'
 
+// 1. ตั้งค่า Layout (ใช้ detail ที่มี TabBar แล้ว)
 definePageMeta({
-  layout: "header",
-  title: 'Timeline'
+  layout: "detail",
+  title: "Timeline"
 })
 
 const { t } = useAppLocale()
@@ -27,8 +28,10 @@ const {
   addItem, updateItem, deleteItem
 } = useTimelineApi()
 
-const timelineData = getTimelineByEventId(eventId.value)
-
+// 2. ดึงข้อมูล (ใส่ await เพื่อรอข้อมูล)
+const { data: timelineData, refresh } = await getTimelineByEventId(eventId.value)
+// 3. สร้าง Computed เพื่อป้องกัน null (ถ้าไม่มีข้อมูลให้เป็น array ว่าง)
+const timelineList = computed(() => timelineData.value || [])
 // open/close days
 const openDays = ref([])
 const toggleDay = (dayId) => {
@@ -38,12 +41,12 @@ const toggleDay = (dayId) => {
 }
 
 onMounted(() => {
-  if (timelineData.value.length > 0) {
-    openDays.value = timelineData.value.map(d => d.id)
+  if (timelineList.value.length > 0) {
+    openDays.value = timelineList.value.map(d => d.id)
   }
 })
 
-// modals
+// modals state
 const isDayModalOpen = ref(false)
 const dayForm = ref({ date: '', title: '' })
 
@@ -60,48 +63,42 @@ const form = ref({
   icon: '📍'
 })
 
-// day actions
+// --- ACTIONS ---
 const openAddDay = () => {
   dayForm.value = { date: '', title: '' }
   isDayModalOpen.value = true
 }
 
-const handleSaveDay = () => {
+const handleSaveDay = async () => {
   if (!dayForm.value.date || !dayForm.value.title) {
-    return alert(t.value.warning_fill_all)
+    return alert(t.value.warning_fill_all || 'กรุณากรอกข้อมูลให้ครบ')
   }
 
-  addDay({
+  await addDay({
     event_id: eventId.value,
     date: dayForm.value.date,
     title: dayForm.value.title
   })
 
-  setTimeout(() => {
-    const newDay = timelineData.value[timelineData.value.length - 1]
-    if (newDay) openDays.value.push(newDay.id)
-  }, 100)
-
+  // Refresh ข้อมูลหลังบันทึก (ถ้าใช้ useFetch มันจะ auto refresh ให้ถ้าระบบ reactive ถูกต้อง)
+  // แต่ถ้าไม่ refresh ให้ลองเรียก refresh() จาก useFetch หรือ reload หน้า
+  // window.location.reload() // แบบบ้านๆ แก้ขัดไปก่อน
+  await refresh()
   isDayModalOpen.value = false
 }
 
-const handleDeleteDay = (dayId) => {
-  if(confirm(t.value.confirm_delete_day_msg)) deleteDay(dayId)
+const handleDeleteDay = async (dayId) => {
+  if (confirm(t.value.confirm_delete_day_msg || 'ลบวันนี้?')) {
+    await deleteDay(dayId)
+    await refresh()
+    // window.location.reload()
+  }
 }
 
-// item actions
 const openCreateItem = (dayId) => {
   isEditing.value = false
   activeDayId.value = dayId
-  form.value = {
-    id: null,
-    start_time: '',
-    end_time: '',
-    title: '',
-    description: '',
-    location: '',
-    icon: '📍'
-  }
+  form.value = { id: null, start_time: '', end_time: '', title: '', description: '', location: '', icon: '📍' }
   isModalOpen.value = true
 }
 
@@ -112,83 +109,60 @@ const openEditItem = (dayId, item) => {
   isModalOpen.value = true
 }
 
-const handleSaveItem = () => {
+const handleSaveItem = async () => {
   if (!form.value.title || !form.value.start_time) {
-    return alert(t.value.warning_fill_all)
+    return alert(t.value.warning_fill_all || 'กรุณากรอกข้อมูลให้ครบ')
   }
   const payload = { ...form.value }
-  isEditing.value
-    ? updateItem(activeDayId.value, payload)
-    : addItem(activeDayId.value, payload)
 
+  if (isEditing.value) {
+    await updateItem(activeDayId.value, payload)
+  } else {
+    await addItem(activeDayId.value, payload)
+  }
+
+  await refresh()
   isModalOpen.value = false
 }
 
-const handleDeleteItem = (dayId, itemId) => {
-  if(confirm(t.value.confirm_delete_activity_msg)) deleteItem(dayId, itemId)
+const handleDeleteItem = async (dayId, itemId) => {
+  if (confirm(t.value.confirm_delete_activity_msg || 'ลบกิจกรรมนี้?')) {
+    await deleteItem(dayId, itemId)
+    await refresh()
+  }
 }
 </script>
 
 <template>
-  <NuxtLayout name="event">
-    <div class="max-w-5xl mx-auto py-8 px-4 sm:px-6">
-      <!-- Header -->
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10">
-        <div>
-          <h2 class="text-3xl font-extrabold text-gray-900 tracking-tight">
-            {{ t.timeline_title }}
-          </h2>
-          <p class="text-gray-500 mt-1 text-sm">{{ t.timeline_subtitle }}</p>
-        </div>
-        <UiButton variant="primary" @click="openAddDay" class="shadow-lg hover:shadow-xl transition-shadow">
-          <span class="mr-2 text-lg">+</span> {{ t.add_day }}
-        </UiButton>
+  <div class="max-w-5xl mx-auto py-8 px-4 sm:px-6 pb-24">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10">
+      <div>
+        <h2 class="text-3xl font-extrabold text-gray-900 tracking-tight">
+          {{ t.timeline_title || 'กำหนดการ' }}
+        </h2>
+        <p class="text-gray-500 mt-1 text-sm">{{ t.timeline_subtitle || 'จัดการลำดับกิจกรรมแบบเรียลไทม์' }}</p>
       </div>
 
-      <!-- Empty -->
-      <TimelineEmpty
-        v-if="timelineData.length === 0"
-        :t="t"
-        @addDay="openAddDay"
-      />
-
-      <!-- Days -->
-      <TimelineDay
-        v-for="day in timelineData"
-        :key="day.id"
-        :day="day"
-        :t="t"
-        :isOpen="openDays.includes(day.id)"
-        @toggle="toggleDay(day.id)"
-        @addItem="openCreateItem(day.id)"
-        @deleteDay="handleDeleteDay(day.id)"
-        @editItem="item => openEditItem(day.id, item)"
-        @deleteItem="itemId => handleDeleteItem(day.id, itemId)"
-      />
+      <button type="button" @click="openAddDay"
+        class="bg-[#F47A27] text-white px-5 py-2.5 rounded-xl shadow-sm hover:bg-[#d96b22] active:scale-95 transition-all flex items-center justify-center gap-2 text-sm font-semibold">
+        <span class="text-lg leading-none">+</span>
+        <span>{{ t.add_day || 'เพิ่มวัน' }}</span>
+      </button>
     </div>
 
-    <!-- Modals -->
-    <DayModal
-      :open="isDayModalOpen"
-      :form="dayForm"
-      :t="t"
-      @update:form="v => (dayForm = v)"
-      @close="isDayModalOpen = false"
-      @save="handleSaveDay"
-    />
+    <TimelineEmpty v-if="timelineList.length === 0" :t="t" @addDay="openAddDay" />
 
-    <ItemModal
-      :open="isModalOpen"
-      :form="form"
-      :isEditing="isEditing"
-      :availableIcons="timelineIcons"
-      :t="t"
-      @update:form="v => (form = v)"
-      @close="isModalOpen = false"
-      @save="handleSaveItem"
-    />
-  </NuxtLayout>
+    <div v-else class="space-y-6">
+      <TimelineDay v-for="day in timelineList" :key="day.id" :day="day" :t="t" :isOpen="openDays.includes(day.id)"
+        @toggle="toggleDay(day.id)" @addItem="openCreateItem(day.id)" @deleteDay="handleDeleteDay(day.id)"
+        @editItem="item => openEditItem(day.id, item)" @deleteItem="itemId => handleDeleteItem(day.id, itemId)" />
+    </div>
 
-  <!-- Tab bar -->
-  <EventTabBar :event-id="eventId" />
+    <DayModal :open="isDayModalOpen" :form="dayForm" :t="t" @update:form="v => (dayForm = v)"
+      @close="isDayModalOpen = false" @save="handleSaveDay" />
+
+    <ItemModal :open="isModalOpen" :form="form" :isEditing="isEditing" :availableIcons="timelineIcons" :t="t"
+      @update:form="v => (form = v)" @close="isModalOpen = false" @save="handleSaveItem" />
+  </div>
+
 </template>

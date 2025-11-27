@@ -8,7 +8,7 @@ import EventTabBar from '~/components/layout/EventTabBar.vue'
 
 
 definePageMeta({
-  layout: "header",
+  layout: "detail",
   title: "Event Dashboard"
 })
 
