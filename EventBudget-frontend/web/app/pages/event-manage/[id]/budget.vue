@@ -4,7 +4,6 @@ import { useRoute } from 'vue-router'
 import { useExpensesApi } from '~/composables/useExpensesApi'
 import EventTabBar from '~/components/layout/EventTabBar.vue'
 
-// ใช้ Layout ที่มี Header + Tabbar
 definePageMeta({
   layout: "detail",
   title: "Budget Overview"
@@ -17,29 +16,23 @@ const API_URL = config.public.apiBase || 'http://localhost:8000/api'
 
 const { getExpenses, getExpensesByCategory } = useExpensesApi()
 
-// --- 1. ดึงข้อมูล Event (เพื่อเอางบประมาณ total_budget) ---
-// หมายเหตุ: ต้องมั่นใจว่า Backend มี Route: GET /api/events/{id}
+// --- 1. ดึงข้อมูล Event ---
 const { data: eventData, error: eventError } = await useFetch(`${API_URL}/events/${eventId}`)
 
-// --- 2. ดึงข้อมูลรายจ่าย (Expenses) ---
+// --- 2. ดึงข้อมูลรายจ่าย ---
 const { data: expenses, pending: expensesPending } = await getExpenses(eventId)
 
-// Debug: ดูค่าใน Console (กด F12 ดูได้เลย)
-onMounted(() => {
-  console.log("Event Data:", eventData.value)
-  console.log("Total Budget from DB:", eventData.value?.total_budget)
+// ✅ 3. ดึงสกุลเงินจาก Event (ถ้าไม่มีให้เป็น THB)
+const currency = computed(() => {
+  return eventData.value?.currency_code || eventData.value?.currency || 'THB'
 })
 
-// --- 3. Computed (คำนวณตัวเลข) ---
-
-// งบที่ตั้งไว้ (ดึงจาก total_budget หรือ total)
+// --- Computed ---
 const totalBudget = computed(() => {
   if (!eventData.value) return 0
-  // แปลงเป็นตัวเลข (Support ทั้งชื่อ total_budget และ total)
   return Number(eventData.value.total_budget || eventData.value.total || 0)
 })
 
-// ใช้ไปจริง (รวมยอด expenses)
 const totalSpent = computed(() => {
   const list = expenses.value || []
   return list.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
@@ -55,7 +48,6 @@ const percentageUsed = computed(() => {
 
 const isOverBudget = computed(() => totalSpent.value > totalBudget.value)
 
-// แยกหมวดหมู่
 const categoryBreakdown = computed(() => {
   return getExpensesByCategory(expenses.value || []).sort((a, b) => b.amount - a.amount)
 })
@@ -64,7 +56,7 @@ const formatMoney = (n) => Number(n).toLocaleString('en-US', { minimumFractionDi
 </script>
 
 <template>
-  <div class="max-w-3xl mx-auto space-y-6">
+  <div class="max-w-3xl mx-auto space-y-6 pb-24">
     <div>
       <h1 class="text-2xl font-bold text-slate-800">Budget Overview</h1>
       <p class="text-slate-500 text-sm">บริหารจัดการงบประมาณ</p>
@@ -82,14 +74,15 @@ const formatMoney = (n) => Number(n).toLocaleString('en-US', { minimumFractionDi
         
         <h2 class="text-4xl font-extrabold tracking-tight transition-colors"
             :class="isOverBudget ? 'text-red-500' : 'text-green-600'">
-          {{ formatMoney(remaining) }} <span class="text-lg font-normal text-slate-400">THB</span>
+          {{ formatMoney(remaining) }} 
+          <span class="text-lg font-normal text-slate-400">{{ currency }}</span>
         </h2>
         
         <div v-if="isOverBudget" class="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-red-100 text-red-600 text-xs font-bold animate-pulse">
-          ⚠️ เกินงบ {{ formatMoney(totalSpent - totalBudget) }} THB
+          ⚠️ เกินงบ {{ formatMoney(totalSpent - totalBudget) }} {{ currency }}
         </div>
         <div v-else class="text-xs text-slate-400">
-           จากงบทั้งหมด {{ formatMoney(totalBudget) }} THB
+           จากงบทั้งหมด {{ formatMoney(totalBudget) }} {{ currency }}
         </div>
       </div>
 
@@ -138,7 +131,7 @@ const formatMoney = (n) => Number(n).toLocaleString('en-US', { minimumFractionDi
           
           <div class="text-right">
             <div class="font-bold text-slate-800">{{ formatMoney(cat.amount) }}</div>
-            <div class="text-[10px] text-slate-400">THB</div>
+            <div class="text-[10px] text-slate-400">{{ currency }}</div>
           </div>
         </div>
       </div>

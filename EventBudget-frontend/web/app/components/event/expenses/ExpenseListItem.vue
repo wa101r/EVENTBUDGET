@@ -2,22 +2,21 @@
 import { computed } from 'vue'
 
 const props = defineProps({
-  expense: { type: Object, required: true }
+  expense: { type: Object, required: true },
+  // ✅ รับ prop currency
+  currency: { type: String, default: 'THB' }
 })
 
 const emit = defineEmits(["edit", "delete"])
 
-// จัดรูปแบบเงิน (เช่น 5000 -> 5,000)
 const formattedAmount = computed(() => {
   const amount = Number(props.expense.amount) || 0
   return amount.toLocaleString("en-US", { minimumFractionDigits: 0 })
 })
 
-// จัดรูปแบบวันที่ (รองรับทั้ง String และ Date Object)
 const formattedDate = computed(() => {
   if (!props.expense.date) return "-"
   const d = new Date(props.expense.date)
-  // เช็คว่าวันที่ Valid ไหม
   if (isNaN(d.getTime())) return props.expense.date 
   
   return d.toLocaleDateString("th-TH", { 
@@ -49,7 +48,7 @@ const formattedDate = computed(() => {
         <div class="text-lg font-bold text-orange-600">
           {{ formattedAmount }}
         </div>
-        <div class="text-[10px] text-slate-400 uppercase">THB</div>
+        <div class="text-[10px] text-slate-400 uppercase">{{ currency }}</div>
       </div>
     </div>
 

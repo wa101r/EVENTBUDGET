@@ -44,7 +44,7 @@ export const getEventCurrency = (e: any) =>
   (e.currency_code || e.currency || "THB").toUpperCase();
 
 export const getEventBaseAmount = (e: any) =>
-  e.base_total ?? e.total ?? e.total_budget ?? e.budget_amount ?? 0;
+  e.total_budget ?? e.base_total ?? e.total ?? e.budget_amount ?? 0;
 
 // สถานะอีเวนต์ จากวันที่วันนี้เทียบกับ start/end
 export const getStatusInfo = (e: any) => {

@@ -9,10 +9,19 @@ class EventDay extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['event_id', 'date', 'title'];
+    public $timestamps = false; // ตาราง event_days ไม่มี created_at, updated_at ใน SQL ที่ให้มา
 
-    // 👇 เพิ่มบรรทัดนี้ลงไปครับ! (สั่งปิดการบันทึกเวลา)
-    public $timestamps = false;
+    protected $fillable = [
+        'event_id',
+        'date',
+        'title',
+        'display_order'
+    ];
+
+    public function event()
+    {
+        return $this->belongsTo(Event::class);
+    }
 
     public function items()
     {

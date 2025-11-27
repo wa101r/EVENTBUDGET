@@ -14,8 +14,13 @@ definePageMeta({
 
 const route = useRoute()
 const eventId = route.params.id
+const config = useRuntimeConfig()
+const API_URL = config.public.apiBase || 'http://localhost:8000/api'
 
-// ✅ ดึง categories และ getCategories มาใช้
+// ✅ 1. ดึงข้อมูล Event เพื่อเอา Currency Code
+const { data: event } = await useFetch(`${API_URL}/events/${eventId}`)
+const currency = computed(() => event.value?.currency_code || 'THB')
+
 const { 
   getExpenses, 
   createExpense, 
@@ -25,9 +30,8 @@ const {
   getCategories 
 } = useExpensesApi()
 
-// ✅ สั่งโหลดหมวดหมู่ทันที
+// โหลดหมวดหมู่และรายจ่าย
 await getCategories()
-
 const { data: expenses, pending, refresh, error } = await getExpenses(eventId)
 
 const searchQuery = ref('')
@@ -100,7 +104,8 @@ const handleSave = async (formData: any) => {
       <div class="flex justify-between items-center px-2 pt-2 border-t border-slate-100">
         <span class="text-slate-500 font-medium">ยอดรวม</span>
         <span class="text-2xl font-bold text-orange-600">
-          {{ totalAmount.toLocaleString() }} <span class="text-sm text-slate-400 font-normal">THB</span>
+          {{ totalAmount.toLocaleString() }} 
+          <span class="text-sm text-slate-400 font-normal">{{ currency }}</span>
         </span>
       </div>
     </div>
@@ -108,11 +113,13 @@ const handleSave = async (formData: any) => {
     <div v-if="filteredExpenses.length === 0" class="text-center py-12 border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50">
       <p class="text-slate-500 font-medium">ยังไม่มีรายการค่าใช้จ่าย</p>
     </div>
+
     <div v-else class="space-y-3">
       <ExpenseListItem 
         v-for="expense in filteredExpenses" 
         :key="expense.id" 
         :expense="expense"
+        :currency="currency"
         @edit="handleEdit"
         @delete="handleDelete"
       />

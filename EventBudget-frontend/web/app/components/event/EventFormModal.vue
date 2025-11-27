@@ -34,7 +34,6 @@ const emit = defineEmits([
         v-show="modelValue"
         class="bg-white w-full max-w-2xl max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden"
       >
-        <!-- HEADER -->
         <div class="flex justify-between items-center px-6 py-4 border-b border-slate-200">
           <h2 class="text-xl font-semibold text-slate-900">
             {{ isEditing ? "Edit Event" : "Add New Event" }}
@@ -48,7 +47,6 @@ const emit = defineEmits([
           </button>
         </div>
 
-        <!-- FORM -->
         <form @submit.prevent="emit('save')" class="px-6 py-5 overflow-y-auto space-y-5">
           <FormField label="Event Name">
             <input v-model="newEvent.name" class="form-input-light" placeholder="Enter event name" required />
@@ -68,10 +66,9 @@ const emit = defineEmits([
           </FormField>
 
           <FormField label="Location">
-            <input v-model="newEvent.country" class="form-input-light" />
+            <input v-model="newEvent.location" class="form-input-light" />
           </FormField>
 
-          <!-- Event Currency -->
           <FormField label="Event Currency">
             <div class="event-currency-dropdown relative">
               <button
@@ -129,9 +126,8 @@ const emit = defineEmits([
             </div>
           </FormField>
 
-          <!-- Budget -->
           <FormField label="Total Budget (ตามสกุล Event)">
-            <input v-model="newEvent.total" type="number" min="0" class="form-input-light" required />
+            <input v-model="newEvent.total_budget" type="number" min="0" class="form-input-light" required />
             <p class="mt-1 text-[11px] text-slate-500">
               สกุลเงิน: {{ (newEvent.currency_code || "THB").toUpperCase() }}
             </p>
@@ -152,19 +148,19 @@ const emit = defineEmits([
           </FormField>
 
           <FormField label="Venue Website/Map URL">
-            <input v-model="newEvent.client_website" class="form-input-light" placeholder="https://..." />
+            <input v-model="newEvent.venue_url" class="form-input-light" placeholder="https://..." />
           </FormField>
 
-          <FormField label="Commended Name">
-            <input v-model="newEvent.commended_name" class="form-input-light" />
+          <FormField label="Accommodation Name">
+            <input v-model="newEvent.accommodation_name" class="form-input-light" />
           </FormField>
 
-          <FormField label="Commended Website/Map URL">
-            <input v-model="newEvent.commended_website" class="form-input-light" placeholder="https://..." />
+          <FormField label="Accommodation Website/Map URL">
+            <input v-model="newEvent.accommodation_url" class="form-input-light" placeholder="https://..." />
           </FormField>
 
           <FormField label="Online Drive URL">
-            <input v-model="newEvent.online_drive" class="form-input-light" placeholder="https://..." />
+            <input v-model="newEvent.drive_link" class="form-input-light" placeholder="https://..." />
           </FormField>
 
           <hr class="border-slate-200 my-4" />
@@ -190,7 +186,6 @@ const emit = defineEmits([
             <span class="text-xl leading-none">+</span> Add Team Member
           </button>
 
-          <!-- FOOTER -->
           <div class="flex justify-end gap-2 pt-6 border-t border-slate-200">
             <button
               type="button"

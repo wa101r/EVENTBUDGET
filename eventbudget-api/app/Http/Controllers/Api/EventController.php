@@ -8,46 +8,27 @@ use Illuminate\Http\Request;
 
 class EventController extends Controller
 {
-    // 1. ดึงข้อมูลทั้งหมด (สำหรับหน้า List)
+    // 1. ดึงข้อมูล Event ทั้งหมด
     public function index()
     {
         return Event::orderBy('created_at', 'desc')->get();
     }
 
-    // 2. ดึงข้อมูลงานเดียว (สำหรับหน้า Dashboard)
+    // 2. ดึง Event เดียว (หน้า Dashboard)
     public function show($id)
     {
         return Event::findOrFail($id);
     }
 
-    // 3. สร้าง Event ใหม่ (แก้ปัญหาปุ่ม Add)
+    // 3. สร้าง Event ใหม่
     public function store(Request $request)
     {
-        // Validate ข้อมูล
-        $validated = $request->validate([
-            'name' => 'required|string',
-            'start_date' => 'nullable|date',
-            'end_date' => 'nullable|date',
-            'total_budget' => 'nullable|numeric', // เช็คชื่อคอลัมน์ใน DB ให้ดี (total หรือ total_budget)
-            'currency_code' => 'nullable|string',
-            // ฟิลด์อื่นๆ อนุญาตให้ว่างได้
-            'client_name' => 'nullable',
-            'venue_name' => 'nullable',
-            'country' => 'nullable',
-            'description' => 'nullable',
-            'client_website' => 'nullable',
-            'commended_name' => 'nullable',
-            'commended_website' => 'nullable',
-            'online_drive' => 'nullable',
-        ]);
+        $data = $this->mapRequestToEventData($request);
+        
+        $event = Event::create($data);
 
-        // ถ้าใน Form ส่งมาเป็น 'total' แต่ใน DB เป็น 'total_budget' ให้แก้ตรงนี้
-        if ($request->has('total') && !isset($validated['total_budget'])) {
-            $validated['total_budget'] = $request->input('total');
-        }
-
-        $event = Event::create($validated);
-
+        // TODO: ถ้าในอนาคตจะบันทึก Team ให้เขียนโค้ดบันทึกลงตาราง event_teams ตรงนี้
+        
         return response()->json($event, 201);
     }
 
@@ -55,7 +36,11 @@ class EventController extends Controller
     public function update(Request $request, $id)
     {
         $event = Event::findOrFail($id);
-        $event->update($request->all());
+        
+        $data = $this->mapRequestToEventData($request);
+
+        $event->update($data);
+        
         return response()->json($event);
     }
 
@@ -65,5 +50,36 @@ class EventController extends Controller
         $event = Event::findOrFail($id);
         $event->delete();
         return response()->json(null, 204);
+    }
+
+    private function mapRequestToEventData(Request $request)
+    {
+        $data = $request->except(['team']);
+
+        // Map frontend fields to DB columns
+        if ($request->has('country')) {
+            $data['location'] = $request->input('country');
+        }
+        if ($request->has('client_website')) {
+            $data['venue_url'] = $request->input('client_website');
+        }
+        if ($request->has('commended_name')) {
+            $data['accommodation_name'] = $request->input('commended_name');
+        }
+        if ($request->has('commended_website')) {
+            $data['accommodation_url'] = $request->input('commended_website');
+        }
+        if ($request->has('online_drive')) {
+            $data['drive_link'] = $request->input('online_drive');
+        }
+        
+        // Ensure total_budget is set if base_total is present (or vice versa if needed)
+        // Assuming base_total is the primary source from frontend
+        if ($request->has('base_total')) {
+             $data['base_total'] = $request->input('base_total');
+             $data['total_budget'] = $request->input('base_total'); // Sync to total_budget as well
+        }
+
+        return $data;
     }
 }
